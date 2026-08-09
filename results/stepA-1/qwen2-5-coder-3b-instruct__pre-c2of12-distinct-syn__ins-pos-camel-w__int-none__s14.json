@@ -1,0 +1,70 @@
+{
+  "step": "stepA-1",
+  "rq": "RQ1",
+  "prediction": "선행이 서로 다른 과제여도 clone과 유사한 바닥/primacy/잠금이면 데모 오버라이드가 아님. camel-on-Python이라 준수율은 바닥 예상.",
+  "created_at": "2026-08-09T11:16:27.243078+00:00",
+  "condition": {
+    "model": {
+      "name": "Qwen/Qwen2.5-Coder-3B-Instruct",
+      "family": "qwen",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 2,
+      "n_functions": 12,
+      "composition": "distinct",
+      "source": "synthetic",
+      "repo_lang": null
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "camel",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "none",
+      "layers": null,
+      "donor": null,
+      "amplify": null
+    },
+    "seed": 14,
+    "task_ids": [],
+    "tag": null
+  },
+  "metrics": {
+    "compliance_rate": 0.0,
+    "compliance_preference": null,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {},
+    "extra": {
+      "turn_notations": [
+        "other",
+        "snake",
+        "snake"
+      ],
+      "turn_names": [
+        "clamp",
+        "count_vowels",
+        "merge_dictionaries"
+      ],
+      "turn_texts": [
+        "To add a function that clamps a number between a low and high bound, you can use the following code:\n\n```python\ndef clamp(number, lower_bound, upper_bound):\n    return max(lower_bound, min(number, upper_bound))\n```\n\nThis function takes three arguments: `number`, `lower_bound`, and `upper_bound`. It returns the `number` clamped between `lower_bound` and `upper_bound`. The `max` function ensures that the number does not exceed the `upper_bound`, and the `min` function ensures that the number does not fall below the `lower_bound`.",
+        "To add a function that counts the vowels in a string, you can use the following code:\n\n```python\ndef count_vowels(text):\n    vowels = 'aeiouAEIOU'\n    count = 0\n    for char in text:\n        if char in vowels:\n            count += 1\n    return count\n```\n\nThis function takes a string `text` as input and initializes a counter `count` to zero. It then iterates over each character in the string, checking if it is a vowel (either lowercase or uppercase). If it is, the counter is incremented. Finally, the function returns the total count of vowels found in the string.",
+        "To add a function that merges two dictionaries, you can use the following code:\n\n```python\ndef merge_dictionaries(dict1, dict2):\n    merged_dict = dict1.copy()  # Create a copy of the first dictionary\n    merged_dict.update(dict2)   # Update the copy with the second dictionary\n    return merged_dict\n```\n\nThis function takes two dictionaries, `dict1` and `dict2`, as input. It creates a copy of `dict1` using the `copy()` method to avoid modifying the original dictionary. Then, it updates the copy with the key-value pairs from `dict2` using the `update()` method. Finally, it returns the merged dictionary."
+      ],
+      "target": "camel",
+      "first_compliant": false,
+      "first_violated": true,
+      "subsequent_violation_rate": 1.0
+    }
+  },
+  "meta": {}
+}

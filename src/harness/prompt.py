@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 from .conditions import Composition, Condition, InstructionForm, Notation, Source
-from .tasks import CLONE_TASK, GENERATION_TASKS, TaskSpec
+from .tasks import CLONE_TASK, DISTINCT_TASKS, GENERATION_TASKS, TaskSpec
 
 _STYLE = {Notation.CAMEL: "camelCase", Notation.SNAKE: "snake_case"}
 
@@ -61,11 +61,14 @@ def build_preceding_code(condition: Condition) -> str:
     random.Random(condition.seed).shuffle(notations)
 
     if p.composition is Composition.CLONE:
+        # 같은 과제를 인덱스만 바꿔 12복제. 표기는 notations[i].
         funcs = [CLONE_TASK.render(nt, idx=i + 1) for i, nt in enumerate(notations)]
-    else:  # DISTINCT — step A-1이 과제 풀과 함께 구현한다
-        raise NotImplementedError(
-            "composition=distinct(선행 서로 다른 과제)는 step A-1에서 구현한다."
-        )
+    else:  # DISTINCT — 서로 다른 과제 12개. 표기는 notations[i], 인덱스 없음.
+        if p.n_functions > len(DISTINCT_TASKS):
+            raise ValueError(
+                f"distinct 과제 풀({len(DISTINCT_TASKS)})이 n_functions({p.n_functions})보다 작다"
+            )
+        funcs = [DISTINCT_TASKS[i].render(nt) for i, nt in enumerate(notations)]
     return "\n\n".join(funcs)
 
 

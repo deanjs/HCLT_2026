@@ -52,7 +52,7 @@
 | `build_prompt` | 선행 + 지침 + 생성 과제 → 프롬프트 조립 (chat template) |
 | `measure_generation` | 3개 순차 생성 → 첫 함수 표기 판정 → 준수율·자기증폭 |
 
-개입·어텐션 단계(step B·C)는 건드리지 않는다. 과제 스펙과 실제 프롬프트 문구는 `docs/stepA_prompt.md`.
+개입·어텐션 단계(step B·C)는 건드리지 않는다. 과제 스펙과 실제 프롬프트 문구는 `docs/stepA/prompt.md`.
 
 ## 설정
 
