@@ -115,10 +115,14 @@ def _fake_gen(notation):
 
 def test_run_all_compliant():
     out = run(_cond(n_compliant=4), generate_fn=_fake_gen(Notation.CAMEL))
+    e = out.metrics.extra
     assert out.metrics.compliance_rate == 1.0
-    assert out.metrics.extra["turn_notations"] == ["camel", "camel", "camel"]
-    assert out.metrics.extra["first_violated"] is False
-    assert out.metrics.extra["subsequent_violation_rate"] == 0.0
+    assert e["turn_notations"] == ["camel", "camel", "camel"]
+    assert e["first_violated"] is False
+    assert e["subsequent_violation_rate"] == 0.0
+    # 생성 원문·함수명이 함께 보존되는가
+    assert e["turn_names"] == ["clampNumber", "countVowels", "mergeDicts"]
+    assert len(e["turn_texts"]) == 3 and all("def " in t for t in e["turn_texts"])
 
 
 def test_run_all_violation_self_amplifies():

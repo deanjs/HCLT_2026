@@ -93,13 +93,17 @@ def _run_generation(
         {"role": "system", "content": build_instruction_text(condition)}
     ]
     notations: list[str] = []
+    names: list[Optional[str]] = []
+    texts: list[str] = []
     for turn in range(len(GENERATION_TASKS)):
         user = first_user_message(condition) if turn == 0 else next_user_message(turn)
         messages.append({"role": "user", "content": user})
         text = generate_fn(messages)
         messages.append({"role": "assistant", "content": text})
         name = first_def_name(text)
+        names.append(name)
         notations.append(classify_name(name) if name else "other")
+        texts.append(text)
 
     target = condition.instruction.target_notation.value
     first_compliant = notations[0] == target
@@ -111,6 +115,8 @@ def _run_generation(
         compliance_rate=1.0 if first_compliant else 0.0,  # 조건별 평균은 seed 집계에서
         extra={
             "turn_notations": notations,
+            "turn_names": names,   # 모델이 실제 고른 함수명 (표기 판정의 근거)
+            "turn_texts": texts,   # 턴별 생성 원문 (눈으로 검증)
             "target": target,
             "first_compliant": first_compliant,
             "first_violated": not first_compliant,
