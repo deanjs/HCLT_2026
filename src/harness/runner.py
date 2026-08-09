@@ -12,11 +12,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Callable, Optional
 
 from .conditions import Condition, InterventionKind
 from .metrics import Metrics
 from .model import ModelHandle
+from .naming import classify_name, first_def_name
+from .prompt import build_instruction_text, first_user_message, next_user_message
+from .tasks import GENERATION_TASKS
+
+# 생성 함수 타입: 메시지 목록 → 새로 생성된 텍스트.
+GenerateFn = Callable[[list], str]
 
 # 파이프라인 단계와 그것을 채우는 step. 골격에서 이 대응이 계약이다.
 PIPELINE: tuple[tuple[str, str, str], ...] = (
@@ -49,22 +55,70 @@ class StageNotImplemented(NotImplementedError):
         self.stage_key = stage_key
 
 
-def run(condition: Condition, handle: Optional[ModelHandle] = None) -> RunOutput:
+def run(
+    condition: Condition,
+    handle: Optional[ModelHandle] = None,
+    *,
+    generate_fn: Optional[GenerateFn] = None,
+    max_new_tokens: int = 256,
+) -> RunOutput:
     """조건 하나를 실행한다.
 
-    step 0에서는 조건을 검증(생성자에서 이미 수행)하고, 어떤 단계가 필요한지
-    조건 축으로부터 결정하는 라우팅까지만 확정한다. 필요한 측정 단계는 대응 step이
-    채우기 전까지 StageNotImplemented를 던진다.
+    라우팅은 조건 축에서 결정한다(스크립트 분기 아님). 개입이 있으면 개입 경로,
+    없으면 생성 경로다. 생성은 handle.chat_generate 또는 주입한 generate_fn을 쓴다
+    (후자는 모델 없이 파이프라인을 테스트하기 위한 seam).
     """
-    needs_intervention = condition.intervention.kind is not InterventionKind.NONE
-
-    # 라우팅: 조건 축 → 필요한 측정. (스크립트 분기가 아니라 조건 기반 분기)
-    if needs_intervention:
-        # 개입 실험 경로: 치환/증폭 후 준수 선호 점수
+    if condition.intervention.kind is not InterventionKind.NONE:
+        # 개입 실험 경로: step C·step 1에서 구현
         raise StageNotImplemented("apply_intervention")
-    else:
-        # 생성 실험 경로: 프롬프트 조립 후 준수율
-        raise StageNotImplemented("measure_generation")
+    return _run_generation(condition, handle, generate_fn, max_new_tokens)
+
+
+def _run_generation(
+    condition: Condition,
+    handle: Optional[ModelHandle],
+    generate_fn: Optional[GenerateFn],
+    max_new_tokens: int,
+) -> RunOutput:
+    """생성 경로 — 선행 12 + 생성 3을 순차 생성하고 표기를 측정한다(step A)."""
+    if generate_fn is None:
+        if handle is None:
+            raise ValueError("생성에는 handle 또는 generate_fn 중 하나가 필요하다")
+        generate_fn = lambda msgs: handle.chat_generate(
+            msgs, max_new_tokens=max_new_tokens, seed=condition.seed
+        )
+
+    # system(지침) + 순차 3턴. 모델의 이전 답이 히스토리에 쌓여 자기증폭이 누적된다.
+    messages: list[dict[str, str]] = [
+        {"role": "system", "content": build_instruction_text(condition)}
+    ]
+    notations: list[str] = []
+    for turn in range(len(GENERATION_TASKS)):
+        user = first_user_message(condition) if turn == 0 else next_user_message(turn)
+        messages.append({"role": "user", "content": user})
+        text = generate_fn(messages)
+        messages.append({"role": "assistant", "content": text})
+        name = first_def_name(text)
+        notations.append(classify_name(name) if name else "other")
+
+    target = condition.instruction.target_notation.value
+    first_compliant = notations[0] == target
+    subsequent = notations[1:]
+    subsequent_violation = (
+        sum(n != target for n in subsequent) / len(subsequent) if subsequent else None
+    )
+    metrics = Metrics(
+        compliance_rate=1.0 if first_compliant else 0.0,  # 조건별 평균은 seed 집계에서
+        extra={
+            "turn_notations": notations,
+            "target": target,
+            "first_compliant": first_compliant,
+            "first_violated": not first_compliant,
+            # 자기증폭: 첫 함수가 위반일 때 뒤 함수도 위반인 비율
+            "subsequent_violation_rate": subsequent_violation,
+        },
+    )
+    return RunOutput(condition=condition, metrics=metrics)
 
 
 def describe_pipeline() -> str:

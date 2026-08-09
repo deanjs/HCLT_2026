@@ -56,6 +56,36 @@ class ModelHandle:
         """층의 상대 위치(0~1). L25가 전체 대비 어디인지 확인용(계획서 §2.5)."""
         return layer / max(1, self.num_layers - 1)
 
+    def chat_generate(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        max_new_tokens: int = 256,
+        seed: int = 0,
+        temperature: float = 0.0,
+    ) -> str:
+        """chat 템플릿으로 메시지를 받아 새로 생성된 텍스트만 반환한다.
+
+        step A의 순차 생성에 쓴다. temperature=0이면 그리디(재현성). torch 지연 임포트.
+        """
+        import torch
+
+        tok = self.tokenizer
+        input_ids = tok.apply_chat_template(
+            messages, add_generation_prompt=True, return_tensors="pt"
+        ).to(self.model.device)
+        torch.manual_seed(seed)
+        do_sample = temperature and temperature > 0
+        with torch.no_grad():
+            out = self.model.generate(
+                input_ids,
+                max_new_tokens=max_new_tokens,
+                do_sample=bool(do_sample),
+                temperature=temperature if do_sample else None,
+                pad_token_id=tok.eos_token_id,
+            )
+        return tok.decode(out[0, input_ids.shape[1]:], skip_special_tokens=True)
+
 
 def load_model(spec: ModelSpec, device_map: Optional[str] = "auto") -> ModelHandle:
     """HF 허브에서 instruct 모델을 로드한다. torch/transformers 지연 임포트.

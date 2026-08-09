@@ -25,8 +25,16 @@ from .conditions import (
     Strength,
 )
 from .metrics import Metrics
+from .naming import classify_name, first_def_name, render_camel, render_snake
+from .prompt import (
+    build_instruction_text,
+    build_preceding_code,
+    first_user_message,
+    next_user_message,
+)
 from .results import ResultRecord, result_path, save_result
 from .runner import PIPELINE, run
+from .tasks import CLONE_TASK, GENERATION_TASKS, TaskSpec
 
 __all__ = [
     "Composition",
@@ -41,6 +49,17 @@ __all__ = [
     "Source",
     "Strength",
     "Metrics",
+    "classify_name",
+    "first_def_name",
+    "render_camel",
+    "render_snake",
+    "build_instruction_text",
+    "build_preceding_code",
+    "first_user_message",
+    "next_user_message",
+    "CLONE_TASK",
+    "GENERATION_TASKS",
+    "TaskSpec",
     "ResultRecord",
     "result_path",
     "save_result",
