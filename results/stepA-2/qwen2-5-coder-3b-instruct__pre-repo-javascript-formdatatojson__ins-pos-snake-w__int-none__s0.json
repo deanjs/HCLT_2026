@@ -1,0 +1,71 @@
+{
+  "step": "stepA-2",
+  "rq": "RQ1",
+  "prediction": "일치 칸(파일 관습=지침) 높음, 충돌 칸 낮음이면 언어 관습(형태)이 지침을 압도 → RQ1 외적 타당성. 특히 Python+camel(충돌)에서 바닥 예상(step A와 일치).",
+  "created_at": "2026-08-09T12:02:40.548049+00:00",
+  "condition": {
+    "model": {
+      "name": "Qwen/Qwen2.5-Coder-3B-Instruct",
+      "family": "qwen",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 0,
+      "n_functions": 12,
+      "composition": "clone",
+      "source": "repo",
+      "repo_lang": "javascript",
+      "repo_file": "javascript/formDataToJSON.js"
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "snake",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "none",
+      "layers": null,
+      "donor": null,
+      "amplify": null
+    },
+    "seed": 0,
+    "task_ids": [],
+    "tag": null
+  },
+  "metrics": {
+    "compliance_rate": 0.0,
+    "compliance_preference": null,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {},
+    "extra": {
+      "turn_notations": [
+        "other",
+        "camel",
+        "camel"
+      ],
+      "turn_names": [
+        "clamp",
+        "countVowels",
+        "mergeDictionaries"
+      ],
+      "turn_texts": [
+        "To add a function that clamps a number between a low and high bound, you can define a new function named `clamp`. This function will take three parameters: the number to be clamped, the lower bound, and the upper bound. It will return the number if it falls within the specified range, otherwise, it will return the closest boundary.\n\nHere's how you can implement the `clamp` function:\n\n```javascript\n/**\n * Clamps a number between a low and high bound.\n *\n * @param {number} num - The number to clamp.\n * @param {number} min - The lower bound.\n * @param {number} max - The upper bound.\n *\n * @returns {number} The clamped number.\n */\nfunction clamp(num, min, max) {\n  return Math.min(Math.max(num, min), max);\n}\n```\n\nThis function uses `Math.min` and `Math.max` to ensure that the number is not less than the minimum and not greater than the maximum. You can then use this function in your code where needed to enforce bounds on numbers.",
+        "To add a function that counts the vowels in a string, you can define a new function named `countVowels`. This function will iterate over each character in the string and check if it is a vowel. If it is, it will increment a counter. Finally, it will return the count of vowels.\n\nHere's how you can implement the `countVowels` function:\n\n```javascript\n/**\n * Counts the number of vowels in a string.\n *\n * @param {string} str - The string to count vowels in.\n *\n * @returns {number} The number of vowels in the string.\n */\nfunction countVowels(str) {\n  const vowels = 'aeiouAEIOU';\n  let count = 0;\n\n  for (let char of str) {\n    if (vowels.includes(char)) {\n      count++;\n    }\n  }\n\n  return count;\n}\n```\n\nThis function defines a string `vowels` containing all the vowels in both lowercase and uppercase. It then iterates over each character in the input string `str`, checking if it is included in the `vowels` string. If it is, the `count` variable is incremented. Finally, the function returns the total count of vowels found in the",
+        "To add a function that merges two dictionaries (objects in JavaScript), you can define a new function named `mergeDictionaries`. This function will take two objects as arguments and return a new object that contains all the properties from both objects. If there are overlapping properties, the value from the second object will overwrite the value from the first object.\n\nHere's how you can implement the `mergeDictionaries` function:\n\n```javascript\n/**\n * Merges two dictionaries (objects).\n *\n * @param {Object} obj1 - The first dictionary.\n * @param {Object} obj2 - The second dictionary.\n *\n * @returns {Object} A new dictionary containing all properties from both objects.\n */\nfunction mergeDictionaries(obj1, obj2) {\n  const merged = { ...obj1 };\n\n  for (const key in obj2) {\n    if (obj2.hasOwnProperty(key)) {\n      merged[key] = obj2[key];\n    }\n  }\n\n  return merged;\n}\n```\n\nThis function uses the spread operator (`{ ...obj1 }`) to create a shallow copy of the first object. It then iterates over each property in the second object using a `for...in` loop. If the property exists in the second object, it updates the corresponding property"
+      ],
+      "target": "snake",
+      "first_compliant": false,
+      "first_violated": true,
+      "subsequent_violation_rate": 1.0
+    }
+  },
+  "meta": {}
+}
