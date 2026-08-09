@@ -43,6 +43,35 @@ CLONE_TASK = TaskSpec(
     body=("return value * factor",),
 )
 
+# 선행용 distinct 과제 12개 (step A-1) — 서로 다른 작업. 생성 3개와 겹치지 않는다.
+# 모두 두 단어 이상이라 camel/snake가 구분된다. 인덱스 없이 이름 그대로 렌더링.
+DISTINCT_TASKS: tuple[TaskSpec, ...] = (
+    TaskSpec(("sum", "list"), "returns the sum of a list", ("items",),
+             ("return sum(items)",)),
+    TaskSpec(("max", "value"), "returns the largest value in a list", ("items",),
+             ("return max(items)",)),
+    TaskSpec(("reverse", "string"), "reverses a string", ("text",),
+             ("return text[::-1]",)),
+    TaskSpec(("is", "even"), "checks whether a number is even", ("number",),
+             ("return number % 2 == 0",)),
+    TaskSpec(("to", "upper"), "converts a string to upper case", ("text",),
+             ("return text.upper()",)),
+    TaskSpec(("first", "item"), "returns the first item of a list", ("items",),
+             ("return items[0]",)),
+    TaskSpec(("last", "item"), "returns the last item of a list", ("items",),
+             ("return items[-1]",)),
+    TaskSpec(("square", "number"), "returns the square of a number", ("number",),
+             ("return number * number",)),
+    TaskSpec(("join", "words"), "joins a list of words with spaces", ("words",),
+             ('return " ".join(words)',)),
+    TaskSpec(("strip", "spaces"), "strips leading and trailing spaces", ("text",),
+             ("return text.strip()",)),
+    TaskSpec(("double", "value"), "returns the value doubled", ("value",),
+             ("return value * 2",)),
+    TaskSpec(("abs", "diff"), "returns the absolute difference of two numbers", ("a", "b"),
+             ("return abs(a - b)",)),
+)
+
 # 생성용 과제 3개 — 서로 다르고 선행과도 다르다. 모델이 이름을 직접 선택한다.
 GENERATION_TASKS: tuple[TaskSpec, ...] = (
     TaskSpec(
