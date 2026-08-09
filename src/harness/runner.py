@@ -17,7 +17,7 @@ from typing import Callable, Optional
 from .conditions import Condition, InterventionKind
 from .metrics import Metrics
 from .model import ModelHandle
-from .naming import classify_name, first_def_name
+from .naming import classify_name, first_function_name
 from .prompt import build_instruction_text, first_user_message, next_user_message
 from .tasks import GENERATION_TASKS
 
@@ -89,6 +89,9 @@ def _run_generation(
         )
 
     # system(지침) + 순차 3턴. 모델의 이전 답이 히스토리에 쌓여 자기증폭이 누적된다.
+    # 코드 언어(합성=python, 실코드=repo_lang) → 이름 추출기 선택
+    lang = condition.preceding.repo_lang or "python"
+
     messages: list[dict[str, str]] = [
         {"role": "system", "content": build_instruction_text(condition)}
     ]
@@ -100,7 +103,7 @@ def _run_generation(
         messages.append({"role": "user", "content": user})
         text = generate_fn(messages)
         messages.append({"role": "assistant", "content": text})
-        name = first_def_name(text)
+        name = first_function_name(text, lang)
         names.append(name)
         notations.append(classify_name(name) if name else "other")
         texts.append(text)

@@ -25,7 +25,13 @@ from .conditions import (
     Strength,
 )
 from .metrics import Metrics
-from .naming import classify_name, first_def_name, render_camel, render_snake
+from .naming import (
+    classify_name,
+    first_def_name,
+    first_function_name,
+    render_camel,
+    render_snake,
+)
 from .prompt import (
     build_instruction_text,
     build_preceding_code,
@@ -51,6 +57,7 @@ __all__ = [
     "Metrics",
     "classify_name",
     "first_def_name",
+    "first_function_name",
     "render_camel",
     "render_snake",
     "build_instruction_text",

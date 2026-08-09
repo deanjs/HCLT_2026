@@ -7,12 +7,27 @@
 from __future__ import annotations
 
 import random
+from pathlib import Path
 from typing import Optional
 
-from .conditions import Composition, Condition, InstructionForm, Notation
+from .conditions import Composition, Condition, InstructionForm, Notation, Source
 from .tasks import CLONE_TASK, GENERATION_TASKS, TaskSpec
 
 _STYLE = {Notation.CAMEL: "camelCase", Notation.SNAKE: "snake_case"}
+
+# 번들 실파일 위치: <repo_root>/data/repo_files/ (src/harness/prompt.py → parents[2])
+_REPO_FILES_DIR = Path(__file__).resolve().parents[2] / "data" / "repo_files"
+_LANG_LABEL = {"python": "Python", "javascript": "JavaScript", "js": "JavaScript"}
+
+
+def _lang(condition: Condition) -> str:
+    """이 조건의 코드 언어. 합성은 python, 실코드는 repo_lang."""
+    p = condition.preceding
+    return p.repo_lang if p.source is Source.REPO else "python"
+
+
+def _load_repo_file(repo_file: str) -> str:
+    return (_REPO_FILES_DIR / repo_file).read_text(encoding="utf-8")
 
 
 def build_instruction_text(condition: Condition) -> str:
@@ -31,12 +46,15 @@ def build_instruction_text(condition: Condition) -> str:
                 f"In this project, please avoid writing function names in {viol}.")
     c0, c1 = (_STYLE[c] for c in ins.candidates)
     closed = f"Every function name uses one of two styles only: {c0} or {c1}."
-    return "You are helping extend an existing Python module.\n" + rule + "\n" + closed
+    lang = _LANG_LABEL.get(_lang(condition), "Python")
+    return f"You are helping extend an existing {lang} module.\n" + rule + "\n" + closed
 
 
 def build_preceding_code(condition: Condition) -> str:
-    """선행 코드 12개 블록. n_compliant개는 목표 표기, 나머지는 위반 표기, 위치 셔플."""
+    """선행 코드. 합성이면 12개 블록(clone/distinct), 실코드면 번들 파일 원문."""
     p = condition.preceding
+    if p.source is Source.REPO:
+        return _load_repo_file(p.repo_file)   # 실코드는 조작 없이 원문 그대로
     target = condition.instruction.target_notation
     violation = condition.instruction.violation_notation
     notations = [target] * p.n_compliant + [violation] * (p.n_functions - p.n_compliant)
@@ -55,9 +73,10 @@ def first_user_message(condition: Condition) -> str:
     """첫 사용자 턴: 선행 코드 + 첫 생성 과제 요청."""
     preceding = build_preceding_code(condition)
     task = GENERATION_TASKS[0]
+    fence = "javascript" if _lang(condition) in ("js", "javascript") else "python"
     return (
         "Here is the current module:\n\n"
-        f"```python\n{preceding}\n```\n\n"
+        f"```{fence}\n{preceding}\n```\n\n"
         f"Add a function that {task.description}."
     )
 
