@@ -5,7 +5,7 @@ RQ1·RQ2·RQ3을 별도 스크립트가 아니라 **하나의 파이프라인 + 
 ## 구성
 
 ```
-harness/
+src/harness/
   conditions.py   조건 스키마 (5개 축) — 단일 진실 공급원
   metrics.py      측정 지표 컨테이너
   results.py      결과 저장 규약 (불변)
@@ -13,6 +13,7 @@ harness/
   runner.py       단일 진입점 run(condition)
 tests/            모델 없이 도는 스모크 10종
 results/          산출물 (불변, §6)
+pyproject.toml    src 레이아웃 패키지 정의 (pip install -e . / pytest 경로)
 ```
 
 ## 조건 축 (conditions.py)
