@@ -119,9 +119,9 @@ def test_save_result_immutable(tmp_path):
 # ── 단일 진입점 라우팅 ─────────────────────────────────────────────────────
 
 def test_run_routes_to_generation_stage():
-    with pytest.raises(StageNotImplemented) as ei:
-        run(make_condition())  # 개입 없음 → 생성 경로
-    assert ei.value.stage_key == "measure_generation"
+    # 생성 경로는 step A에서 구현됨. 생성기 없이 부르면 명시적 ValueError.
+    with pytest.raises(ValueError):
+        run(make_condition())  # 개입 없음 → 생성 경로, 그러나 생성기 미제공
 
 
 def test_run_routes_to_intervention_stage():
