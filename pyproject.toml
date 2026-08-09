@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "harness"
+version = "0.0.0"
+description = "표기 규약 준수 실패 Probing 연구 실험 하네스"
+requires-python = ">=3.10"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# src 레이아웃: 설치 없이도 pytest가 src를 경로에 올려 harness를 임포트한다.
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
