@@ -77,7 +77,8 @@ class PrecedingCode:
     n_functions: int = 12
     composition: Composition = Composition.CLONE
     source: Source = Source.SYNTHETIC
-    repo_lang: Optional[str] = None  # source=REPO일 때 언어(python/js/java 등)
+    repo_lang: Optional[str] = None  # source=REPO일 때 언어(python/javascript)
+    repo_file: Optional[str] = None  # source=REPO일 때 data/repo_files/ 하위 상대경로
 
     def __post_init__(self) -> None:
         if self.n_functions <= 0:
@@ -86,10 +87,15 @@ class PrecedingCode:
             raise ValueError(
                 f"n_compliant는 0..{self.n_functions} 범위여야 한다 (받음: {self.n_compliant})"
             )
-        if self.source is Source.REPO and not self.repo_lang:
-            raise ValueError("source=REPO일 때 repo_lang을 지정해야 한다")
-        if self.source is Source.SYNTHETIC and self.repo_lang is not None:
-            raise ValueError("source=SYNTHETIC에는 repo_lang을 두지 않는다")
+        if self.source is Source.REPO:
+            # 실코드는 관습이 고정되어 n_compliant/composition을 쓰지 않는다.
+            if not self.repo_lang:
+                raise ValueError("source=REPO일 때 repo_lang을 지정해야 한다")
+            if not self.repo_file:
+                raise ValueError("source=REPO일 때 repo_file을 지정해야 한다")
+        else:  # SYNTHETIC
+            if self.repo_lang is not None or self.repo_file is not None:
+                raise ValueError("source=SYNTHETIC에는 repo_lang·repo_file을 두지 않는다")
 
 
 @dataclass(frozen=True)
@@ -231,9 +237,11 @@ class Condition:
         """
         m = _slugify(self.model.name.split("/")[-1])
         p = self.preceding
-        pre = f"pre-c{p.n_compliant}of{p.n_functions}-{p.composition.value}-{p.source.value[:3]}"
-        if p.repo_lang:
-            pre += f"-{_slugify(p.repo_lang)}"
+        if p.source is Source.REPO:
+            stem = p.repo_file.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+            pre = f"pre-repo-{_slugify(p.repo_lang)}-{_slugify(stem)}"
+        else:
+            pre = f"pre-c{p.n_compliant}of{p.n_functions}-{p.composition.value}-syn"
         ins = (f"ins-{self.instruction.form.value[:3]}-"
                f"{self.instruction.target_notation.value}-{self.instruction.strength.value[:1]}")
         iv = self.intervention

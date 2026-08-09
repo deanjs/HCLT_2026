@@ -1,0 +1,71 @@
+{
+  "step": "stepA-2",
+  "rq": "RQ1",
+  "prediction": "일치 칸(파일 관습=지침) 높음, 충돌 칸 낮음이면 언어 관습(형태)이 지침을 압도 → RQ1 외적 타당성. 특히 Python+camel(충돌)에서 바닥 예상(step A와 일치).",
+  "created_at": "2026-08-09T11:57:11.980519+00:00",
+  "condition": {
+    "model": {
+      "name": "Qwen/Qwen2.5-Coder-3B-Instruct",
+      "family": "qwen",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 0,
+      "n_functions": 12,
+      "composition": "clone",
+      "source": "repo",
+      "repo_lang": "python",
+      "repo_file": "python/string.py"
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "snake",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "none",
+      "layers": null,
+      "donor": null,
+      "amplify": null
+    },
+    "seed": 0,
+    "task_ids": [],
+    "tag": null
+  },
+  "metrics": {
+    "compliance_rate": 0.0,
+    "compliance_preference": null,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {},
+    "extra": {
+      "turn_notations": [
+        "other",
+        "snake",
+        "snake"
+      ],
+      "turn_names": [
+        "clamp",
+        "count_vowels",
+        "merge_dictionaries"
+      ],
+      "turn_texts": [
+        "To add a function that clamps a number between a low and high bound, you can define a new function within the module. Here's how you can implement it:\n\n```python\ndef clamp(number, lower_bound, upper_bound):\n    \"\"\"Clamp a number between a low and high bound.\n\n    Parameters:\n    number (float): The number to be clamped.\n    lower_bound (float): The lower bound of the range.\n    upper_bound (float): The upper bound of the range.\n\n    Returns:\n    float: The clamped number.\n    \"\"\"\n    return max(lower_bound, min(number, upper_bound))\n```\n\nThis function takes three parameters: `number`, `lower_bound`, and `upper_bound`. It uses the `max` and `min` functions to ensure that the `number` is not less than the `lower_bound` or greater than the `upper_bound`. The result is the clamped value.",
+        "To add a function that counts the vowels in a string, you can define a new function within the module. Here's how you can implement it:\n\n```python\ndef count_vowels(input_string):\n    \"\"\"Count the number of vowels in a given string.\n\n    Parameters:\n    input_string (str): The string to count vowels in.\n\n    Returns:\n    int: The number of vowels in the string.\n    \"\"\"\n    vowels = \"aeiouAEIOU\"\n    count = 0\n    for char in input_string:\n        if char in vowels:\n            count += 1\n    return count\n```\n\nThis function takes a single parameter: `input_string`. It initializes a string `vowels` containing all the vowels (both lowercase and uppercase). It then iterates over each character in the `input_string` and increments the `count` variable whenever a vowel is found. Finally, it returns the total count of vowels.",
+        "To add a function that merges two dictionaries, you can define a new function within the module. Here's how you can implement it:\n\n```python\ndef merge_dictionaries(dict1, dict2):\n    \"\"\"Merge two dictionaries into a new dictionary.\n\n    Parameters:\n    dict1 (dict): The first dictionary.\n    dict2 (dict): The second dictionary.\n\n    Returns:\n    dict: A new dictionary containing the merged key-value pairs.\n    \"\"\"\n    merged_dict = dict1.copy()  # Create a copy of the first dictionary\n    merged_dict.update(dict2)   # Update the copy with the second dictionary\n    return merged_dict\n```\n\nThis function takes two parameters: `dict1` and `dict2`. It creates a copy of the first dictionary using the `copy()` method. Then, it updates this copy with the key-value pairs from the second dictionary using the `update()` method. Finally, it returns the newly created merged dictionary."
+      ],
+      "target": "snake",
+      "first_compliant": false,
+      "first_violated": true,
+      "subsequent_violation_rate": 0.0
+    }
+  },
+  "meta": {}
+}

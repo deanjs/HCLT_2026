@@ -50,6 +50,34 @@ _DEF_RE = re.compile(r"\bdef\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(")
 
 
 def first_def_name(text: str) -> Optional[str]:
-    """생성 텍스트에서 첫 함수 정의의 이름을 반환한다(없으면 None)."""
+    """Python 생성 텍스트에서 첫 `def <name>(`의 이름을 반환한다(없으면 None)."""
     m = _DEF_RE.search(text)
     return m.group(1) if m else None
+
+
+# JS 함수 정의: function foo( / const foo = (…) => / const foo = async (…) => /
+#              const foo = function / let|var 도 동일. 이름만 캡처.
+_JS_RES = (
+    re.compile(r"\bfunction\s*\*?\s+([A-Za-z_$][\w$]*)\s*\("),
+    re.compile(
+        r"\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*"
+        r"(?:async\s+)?(?:function\b|\(|[A-Za-z_$][\w$]*\s*=>)"
+    ),
+)
+
+
+def first_js_name(text: str) -> Optional[str]:
+    """JavaScript 생성 텍스트에서 첫 함수 정의의 이름을 반환한다(없으면 None)."""
+    best: Optional[tuple[int, str]] = None
+    for rgx in _JS_RES:
+        m = rgx.search(text)
+        if m and (best is None or m.start() < best[0]):
+            best = (m.start(), m.group(1))
+    return best[1] if best else None
+
+
+def first_function_name(text: str, lang: str = "python") -> Optional[str]:
+    """언어에 맞춰 첫 함수 이름을 뽑는다. camel/snake 판정은 언어 무관(classify_name)."""
+    if lang in ("js", "javascript"):
+        return first_js_name(text)
+    return first_def_name(text)

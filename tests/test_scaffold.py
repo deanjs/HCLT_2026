@@ -47,10 +47,13 @@ def test_preceding_range_validation():
         PrecedingCode(n_compliant=-1)
 
 
-def test_repo_source_requires_lang():
+def test_repo_source_requires_lang_and_file():
     with pytest.raises(ValueError):
-        PrecedingCode(n_compliant=2, source=Source.REPO)  # repo_lang 없음
-    PrecedingCode(n_compliant=2, source=Source.REPO, repo_lang="python")  # OK
+        PrecedingCode(n_compliant=2, source=Source.REPO)  # repo_lang·repo_file 없음
+    with pytest.raises(ValueError):
+        PrecedingCode(n_compliant=2, source=Source.REPO, repo_lang="python")  # repo_file 없음
+    PrecedingCode(n_compliant=0, source=Source.REPO,
+                  repo_lang="python", repo_file="python/textwrap.py")  # OK
 
 
 def test_instruction_notation_axes():

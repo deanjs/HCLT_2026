@@ -1,0 +1,71 @@
+{
+  "step": "stepA-2",
+  "rq": "RQ1",
+  "prediction": "일치 칸(파일 관습=지침) 높음, 충돌 칸 낮음이면 언어 관습(형태)이 지침을 압도 → RQ1 외적 타당성. 특히 Python+camel(충돌)에서 바닥 예상(step A와 일치).",
+  "created_at": "2026-08-09T11:53:11.878649+00:00",
+  "condition": {
+    "model": {
+      "name": "Qwen/Qwen2.5-Coder-3B-Instruct",
+      "family": "qwen",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 0,
+      "n_functions": 12,
+      "composition": "clone",
+      "source": "repo",
+      "repo_lang": "python",
+      "repo_file": "python/fnmatch.py"
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "snake",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "none",
+      "layers": null,
+      "donor": null,
+      "amplify": null
+    },
+    "seed": 0,
+    "task_ids": [],
+    "tag": null
+  },
+  "metrics": {
+    "compliance_rate": 0.0,
+    "compliance_preference": null,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {},
+    "extra": {
+      "turn_notations": [
+        "other",
+        "snake",
+        "snake"
+      ],
+      "turn_names": [
+        "clamp",
+        "count_vowels",
+        "merge_dictionaries"
+      ],
+      "turn_texts": [
+        "To add a function that clamps a number between a low and high bound, you can define a new function called `clamp`. This function will take three parameters: the number to be clamped, the lower bound, and the upper bound. It will return the number if it falls within the specified range; otherwise, it will return the closest boundary.\n\nHere's how you can implement this function:\n\n```python\ndef clamp(number, low, high):\n    \"\"\"Clamp a number between a low and high bound.\"\"\"\n    return max(low, min(number, high))\n```\n\nThis function uses the `max` and `min` functions to ensure that the number is not less than the low bound or greater than the high bound. The `max` function ensures that the number is not less than the low bound, and the `min` function ensures that the number is not greater than the high bound.",
+        "To add a function that counts the vowels in a string, you can define a new function called `count_vowels`. This function will iterate over each character in the string and check if it is a vowel. If it is, it will increment a counter. Finally, it will return the count of vowels.\n\nHere's how you can implement this function:\n\n```python\ndef count_vowels(s):\n    \"\"\"Count the number of vowels in a string.\"\"\"\n    vowels = \"aeiouAEIOU\"\n    count = 0\n    for char in s:\n        if char in vowels:\n            count += 1\n    return count\n```\n\nThis function defines a string `vowels` containing all the vowels in both lowercase and uppercase. It initializes a counter `count` to zero. It then iterates over each character in the input string `s`, checking if it is in the `vowels` string. If it is, the counter is incremented. Finally, the function returns the total count of vowels found in the string.",
+        "To add a function that merges two dictionaries, you can define a new function called `merge_dictionaries`. This function will take two dictionaries as input and return a new dictionary that contains all the key-value pairs from both input dictionaries. If there are overlapping keys, the value from the second dictionary will overwrite the value from the first dictionary.\n\nHere's how you can implement this function:\n\n```python\ndef merge_dictionaries(dict1, dict2):\n    \"\"\"Merge two dictionaries.\"\"\"\n    merged_dict = dict1.copy()  # Start with a copy of the first dictionary\n    merged_dict.update(dict2)  # Update with the second dictionary\n    return merged_dict\n```\n\nThis function starts by creating a copy of the first dictionary using the `copy()` method. It then updates this copy with the key-value pairs from the second dictionary using the `update()` method. The resulting dictionary is returned as the merged dictionary. This approach ensures that the original dictionaries remain unchanged."
+      ],
+      "target": "snake",
+      "first_compliant": false,
+      "first_violated": true,
+      "subsequent_violation_rate": 0.0
+    }
+  },
+  "meta": {}
+}
