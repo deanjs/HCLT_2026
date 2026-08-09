@@ -1,0 +1,60 @@
+{
+  "step": "stepA",
+  "rq": "RQ1",
+  "prediction": "준수 예시 >=1이면 85~90% 유지, 0개에서 ~30%로 급락(절벽). 첫 함수 위반 시 이후 함수도 위반으로 연쇄(자기증폭).",
+  "created_at": "2026-08-09T09:43:54.954824+00:00",
+  "condition": {
+    "model": {
+      "name": "Qwen/Qwen2.5-Coder-3B-Instruct",
+      "family": "qwen",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 1,
+      "n_functions": 12,
+      "composition": "clone",
+      "source": "synthetic",
+      "repo_lang": null
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "camel",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "none",
+      "layers": null,
+      "donor": null,
+      "amplify": null
+    },
+    "seed": 4,
+    "task_ids": [],
+    "tag": null
+  },
+  "metrics": {
+    "compliance_rate": 0.0,
+    "compliance_preference": null,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {},
+    "extra": {
+      "turn_notations": [
+        "snake",
+        "snake",
+        "snake"
+      ],
+      "target": "camel",
+      "first_compliant": false,
+      "first_violated": true,
+      "subsequent_violation_rate": 1.0
+    }
+  },
+  "meta": {}
+}
