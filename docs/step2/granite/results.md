@@ -22,6 +22,14 @@
 
 **핵심 이상: `S_깨끗`가 음수(−0.94).** 다른 셋은 clean(선행 전부 camel + camel 지침)에서 준수 후보를 강하게 선호(+2~+4)한다. granite는 그 가장 쉬운 조건에서도 준수를 선호하지 않는다(≈0, 살짝 위반 쪽). → 100% 회복해도 도달점이 −0.94(여전히 위반 선호)라 **개입 여지가 없다.** 회복이 약하고(0.12), Value 우세가 깨지고(Key+Value > Value), 피크가 사실상 **마지막 층(L30/31, rel 0.97)**에 붙는 것은 모두 이 "천장 없음"의 파생 증상이다.
 
+![모델 간 S_clean 비교](figs/s_clean_compare.png)
+
+*4모델 중 granite만 S_clean이 음수 — clean 문맥에서도 준수(camel)를 선호하지 않는다. 이것이 granite negative의 뿌리다.*
+
+![granite 회복률 스윕](figs/recovery_sweep.png)
+
+*granite 회복률은 전 층에서 ≈0, 마지막 층에서만 미미하게 올라온다(Value 0.05, Key+Value 0.12). Qwen/deepseek/stable의 뚜렷한 후반 단일 스파이크(0.15~0.65)와 대조된다.*
+
 ---
 
 ## 2. 원인 진단 — H1 확정, H2 기각
