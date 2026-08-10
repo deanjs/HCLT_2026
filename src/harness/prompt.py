@@ -98,6 +98,60 @@ def next_user_message(turn: int) -> str:
     return f"Add a function that {task.description}."
 
 
+# ── step C(개입)용 헬퍼 ────────────────────────────────────────────────────
+
+def preceding_specs(condition: Condition) -> list[tuple[TaskSpec, Notation]]:
+    """선행 코드의 (TaskSpec, 표기) 목록을 build_preceding_code와 **동일 규칙**으로 재구성.
+
+    개입에서 위반 이름과 그 준수판을 알아야 하므로 구조를 노출한다. 합성 POOL/DISTINCT만
+    지원(CLONE은 idx가 필요하고 step C에서 쓰지 않는다).
+    """
+    p = condition.preceding
+    if p.source is Source.REPO:
+        raise ValueError("preceding_specs는 합성 선행에만 쓴다")
+    target = condition.instruction.target_notation
+    violation = condition.instruction.violation_notation
+    notations = [target] * p.n_compliant + [violation] * (p.n_functions - p.n_compliant)
+    random.Random(condition.seed).shuffle(notations)
+    if p.composition is Composition.POOL:
+        idxs = random.Random(condition.seed).sample(range(len(NAME_PAIR_POOL)), p.n_functions)
+        specs = [NAME_PAIR_POOL[j] for j in idxs]
+    elif p.composition is Composition.DISTINCT:
+        specs = [DISTINCT_TASKS[i] for i in range(p.n_functions)]
+    else:
+        raise ValueError("preceding_specs는 POOL/DISTINCT만 지원(CLONE은 idx 필요)")
+    return list(zip(specs, notations))
+
+
+def render_preceding(specs_notations: list[tuple[TaskSpec, Notation]]) -> str:
+    """(TaskSpec, 표기) 목록을 def 블록들로 렌더링(선행 코드 문자열)."""
+    return "\n\n".join(spec.render(nt) for spec, nt in specs_notations)
+
+
+def user_message_with_preceding(condition: Condition, preceding_text: str) -> str:
+    """임의의 선행 코드 문자열 + 첫 생성 요청으로 user 메시지를 만든다(개입용)."""
+    task = GENERATION_TASKS[0]
+    fence = "javascript" if _lang(condition) in ("js", "javascript") else "python"
+    return (
+        "Here is the current module:\n\n"
+        f"```{fence}\n{preceding_text}\n```\n\n"
+        f"Add a function that {task.description}."
+    )
+
+
+def unrelated_specs(condition: Condition, n: int) -> list[TaskSpec]:
+    """조건의 선행에 쓰이지 않은 풀 이름 n개(무관 코드 통제용). POOL 전용."""
+    if condition.preceding.composition is not Composition.POOL:
+        raise ValueError("unrelated_specs는 POOL 선행에만 쓴다")
+    used = set(random.Random(condition.seed).sample(
+        range(len(NAME_PAIR_POOL)), condition.preceding.n_functions))
+    avail = [j for j in range(len(NAME_PAIR_POOL)) if j not in used]
+    if n > len(avail):
+        raise ValueError(f"무관 이름 부족: 요청 {n}, 가용 {len(avail)}")
+    pick = random.Random(condition.seed + 10007).sample(avail, n)
+    return [NAME_PAIR_POOL[j] for j in pick]
+
+
 def initial_messages(condition: Condition) -> list[dict[str, str]]:
     """system(지침) + 첫 user 턴까지의 초기 메시지."""
     return [

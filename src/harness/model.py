@@ -12,6 +12,7 @@ from typing import Any, Optional
 
 from .conditions import ModelSpec
 from .attention_probe import find_char_spans, locate_token_spans, span_metrics
+from .intervention import align_name_tokens, preference_score, recovery_rate
 
 
 @dataclass
@@ -200,6 +201,151 @@ class ModelHandle:
                 "group_size": gqa.group_size,
             },
         }
+
+    def intervene_preference(
+        self,
+        viol_messages: list[dict[str, str]],
+        comp_messages: list[dict[str, str]],
+        *,
+        viol_names: list[str],
+        donor_names: list[str],
+        candidate_compliant: str,
+        candidate_violation: str,
+        layer: int,
+        kind: str = "key_value",
+        donor_messages: Optional[list[dict[str, str]]] = None,
+        forced_prefix: str = "def ",
+    ) -> dict[str, Any]:
+        """L25 KV 캐시 편집으로 준수 선호도 회복을 측정한다(step C, 방법 B).
+
+        절차(계획서 §구현 방식 — KV 캐시 편집, 2 forward, 3 상태):
+          1) 위반/준수 프롬프트를 각각 forward해 캐시를 얻는다.
+          2) 위반 캐시의 `layer`만, 위반 이름 위치에서 준수(공여) 값으로 덮어쓴다.
+             치환은 KV head(그룹) 단위 — 캐시가 [B, n_kv, seq, d]라 자연스럽다.
+          3) 세 상태의 준수 선호 점수 S를 잰다:
+             clean=준수 캐시 / baseline=위반 캐시 / intervened=편집 캐시.
+          회복률 = (S_int − S_base)/(S_clean − S_base).
+
+        kind: 'key' / 'value' / 'key_value' — 무엇을 치환할지.
+        viol_names·donor_names: 선행 코드의 위반 이름과 그 준수(공여)판(같은 순서·개수).
+        candidate_*: 채점용 고정 후보 두 문자열(생성 대상의 준수판/위반판).
+        텍스트는 그대로 두고 **내부 표현만** 바꾼다(§개념 정리).
+        """
+        import torch
+
+        tok = self.tokenizer
+
+        def prefix(messages):
+            text = tok.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            ) + forced_prefix
+            enc = tok(text, return_tensors="pt", return_offsets_mapping=True,
+                      add_special_tokens=False)
+            offsets = [tuple(o) for o in enc.pop("offset_mapping")[0].tolist()]
+            ids = enc["input_ids"].to(self.model.device)
+            return ids, text, offsets
+
+        def name_positions(text, offsets, names):
+            out = []
+            for nm in names:
+                spans = find_char_spans(text, [f"def {nm}("])
+                if not spans:
+                    out.append([]); continue
+                s, e = spans[0]
+                s, e = s + 4, e - 1                      # "def " 뒤 ~ "(" 앞 = 이름
+                out.append([ti for ti, (ts, te) in enumerate(offsets)
+                            if te > ts and ts < e and te > s])
+            return out
+
+        def cand_ids(s):
+            return tok(s, return_tensors="pt", add_special_tokens=False)["input_ids"][0].to(
+                self.model.device)
+
+        viol_ids, viol_text, viol_off = prefix(viol_messages)
+        comp_ids, comp_text, comp_off = prefix(comp_messages)
+        cc, cv = cand_ids(candidate_compliant), cand_ids(candidate_violation)
+
+        # 1) base 캐시 — prefix[:-1]을 forward (마지막 토큰은 채점 forward에서 넣는다)
+        with torch.no_grad():
+            viol_cache = self.model(viol_ids[:, :-1], use_cache=True).past_key_values
+            comp_cache = self.model(comp_ids[:, :-1], use_cache=True).past_key_values
+        viol_last, comp_last = viol_ids[:, -1:], comp_ids[:, -1:]
+
+        # 공여(donor) 소스: 기본은 준수(clean) 캐시. 무관 코드 통제면 별도 forward.
+        if donor_messages is None:
+            donor_cache, donor_text, donor_off = comp_cache, comp_text, comp_off
+        else:
+            d_ids, donor_text, donor_off = prefix(donor_messages)
+            with torch.no_grad():
+                donor_cache = self.model(d_ids[:, :-1], use_cache=True).past_key_values
+
+        pairs, skipped = align_name_tokens(
+            name_positions(viol_text, viol_off, viol_names),
+            name_positions(donor_text, donor_off, donor_names),
+        )
+
+        def logp_candidate(cache, last_tok, cand):
+            # [마지막 프롬프트 토큰 + cand[:-1]]을 편집된 캐시로 forward → 후보 토큰 logP 합
+            c = _clone_cache(cache)
+            inp = torch.cat([last_tok, cand[:-1].unsqueeze(0)], dim=1)
+            with torch.no_grad():
+                logits = self.model(inp, past_key_values=c, use_cache=True).logits[0]
+            lp = torch.log_softmax(logits.float(), dim=-1)
+            return float(sum(lp[k, cand[k]].item() for k in range(cand.shape[0])))
+
+        def S(cache, last_tok):
+            return preference_score(logp_candidate(cache, last_tok, cc),
+                                    logp_candidate(cache, last_tok, cv))
+
+        s_base = S(viol_cache, viol_last)
+        s_clean = S(comp_cache, comp_last)
+
+        # 2) 개입 — 위반 캐시의 layer만 공여값으로 덮어쓴다(KV group 단위)
+        edited = _clone_cache(viol_cache)
+        ek, ev = _cache_kv(edited, layer)
+        dk, dv = _cache_kv(donor_cache, layer)
+        for vp, dp in pairs:
+            if kind in ("key", "key_value"):
+                ek[:, :, vp, :] = dk[:, :, dp, :]
+            if kind in ("value", "key_value"):
+                ev[:, :, vp, :] = dv[:, :, dp, :]
+        s_int = S(edited, viol_last)
+
+        return {
+            "S_clean": s_clean,
+            "S_base": s_base,
+            "S_int": s_int,
+            "recovery": recovery_rate(s_clean, s_base, s_int),
+            "layer": layer,
+            "kind": kind,
+            "n_substituted_tokens": len(pairs),
+            "skipped_names": skipped,
+        }
+
+
+def _is_dynamic_cache(cache: Any) -> bool:
+    return hasattr(cache, "key_cache") and hasattr(cache, "value_cache")
+
+
+def _cache_kv(cache: Any, layer: int):
+    """layer의 (key, value) 텐서 [B, n_kv, seq, d]를 돌려준다(편집 가능한 원본 참조)."""
+    if _is_dynamic_cache(cache):
+        return cache.key_cache[layer], cache.value_cache[layer]
+    return cache[layer][0], cache[layer][1]
+
+
+def _clone_cache(cache: Any):
+    """past_key_values 깊은 복사 — 후보마다 캐시를 재사용하되 서로 오염되지 않게."""
+    if _is_dynamic_cache(cache):
+        from transformers.cache_utils import DynamicCache
+        new = DynamicCache()
+        new.key_cache = [k.clone() for k in cache.key_cache]
+        new.value_cache = [v.clone() for v in cache.value_cache]
+        for attr in ("_seen_tokens",):
+            if hasattr(cache, attr):
+                setattr(new, attr, getattr(cache, attr))
+        return new
+    return tuple((k.clone(), v.clone()) for (k, v) in cache)
 
 
 def _value_cache(past: Any) -> list:

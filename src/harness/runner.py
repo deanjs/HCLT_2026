@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from .conditions import Condition, InterventionKind
+from .conditions import Condition, InterventionKind, Notation
 from .metrics import Metrics
 from .model import ModelHandle
 import re
@@ -25,6 +25,10 @@ from .prompt import (
     build_preceding_code,
     first_user_message,
     next_user_message,
+    preceding_specs,
+    render_preceding,
+    unrelated_specs,
+    user_message_with_preceding,
 )
 from .tasks import GENERATION_TASKS
 
@@ -84,9 +88,81 @@ def run(
     if mode != "generate":
         raise ValueError(f"알 수 없는 mode: {mode!r} (generate|observe)")
     if condition.intervention.kind is not InterventionKind.NONE:
-        # 개입 실험 경로: step C·step 1에서 구현
-        raise StageNotImplemented("apply_intervention")
+        # 개입 경로(step C): KV 치환으로 준수 선호도 회복 측정
+        return _run_intervention(condition, handle)
     return _run_generation(condition, handle, generate_fn, max_new_tokens)
+
+
+def _run_intervention(condition: Condition, handle: Optional[ModelHandle]) -> RunOutput:
+    """개입 경로(step C) — L25 KV를 준수 값으로 치환해 준수 선호도 회복을 잰다.
+
+    세 상태의 준수 선호 점수 S(clean/baseline/intervened)와 회복률을 얻는다.
+    donor: 'compliant'(같은 이름 준수판) / 'unrelated_camel' / 'unrelated_snake'(통제).
+    """
+    if handle is None:
+        raise ValueError("개입에는 handle이 필요하다 (모델 내부 접근)")
+
+    iv = condition.intervention
+    if iv.is_sweep:
+        raise ValueError("step C는 단일 층. 전 층 스윕은 step 1")
+    layer = list(iv.layers)[0]
+    target = condition.instruction.target_notation
+    violation = condition.instruction.violation_notation
+
+    specs = preceding_specs(condition)                     # [(TaskSpec, 표기)]
+    viol_text = render_preceding(specs)                    # 실제(위반 포함) 선행
+    comp_text = render_preceding([(s, target) for s, _ in specs])  # 준수(clean) 선행
+
+    # 치환 대상 = 위반 표기 이름들. 공여(compliant)는 같은 이름의 준수판.
+    viol_specs = [s for s, nt in specs if nt == violation]
+    viol_names = [s.name(violation) for s in viol_specs]
+    donor_names = [s.name(target) for s in viol_specs]
+
+    system = build_instruction_text(condition)
+
+    def msgs(preceding_text):
+        return [{"role": "system", "content": system},
+                {"role": "user", "content": user_message_with_preceding(condition, preceding_text)}]
+
+    # 생성 대상의 준수판/위반판 = 고정 후보 두 이름
+    gt = GENERATION_TASKS[0]
+    cand_compliant, cand_violation = gt.name(target), gt.name(violation)
+
+    # donor 종류 → 무관 코드 통제면 별도 공여 메시지·이름
+    donor_kind = iv.donor or "compliant"
+    donor_messages = None
+    if donor_kind.startswith("unrelated"):
+        un = Notation.CAMEL if donor_kind.endswith("camel") else Notation.SNAKE
+        u_specs = unrelated_specs(condition, len(viol_specs))
+        donor_names = [s.name(un) for s in u_specs]
+        donor_messages = msgs(render_preceding([(s, un) for s in u_specs]))
+
+    out = handle.intervene_preference(
+        msgs(viol_text), msgs(comp_text),
+        viol_names=viol_names, donor_names=donor_names,
+        candidate_compliant=cand_compliant, candidate_violation=cand_violation,
+        layer=layer, kind=iv.kind.value, donor_messages=donor_messages,
+    )
+
+    metrics = Metrics(
+        compliance_preference=out["S_int"],
+        extra={
+            "mode": "intervene",
+            "donor": donor_kind,
+            "target": target.value,
+            "S_clean": out["S_clean"],
+            "S_base": out["S_base"],
+            "S_int": out["S_int"],
+            "recovery": out["recovery"],
+            "layer": out["layer"],
+            "kind": out["kind"],
+            "n_substituted_tokens": out["n_substituted_tokens"],
+            "skipped_names": out["skipped_names"],
+            "viol_names": viol_names,
+            "donor_names": donor_names,
+        },
+    )
+    return RunOutput(condition=condition, metrics=metrics)
 
 
 def _run_observation(condition: Condition, handle: Optional[ModelHandle]) -> RunOutput:

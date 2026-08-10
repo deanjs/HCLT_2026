@@ -132,8 +132,9 @@ def test_run_all_violation_self_amplifies():
     assert out.metrics.extra["subsequent_violation_rate"] == 1.0  # 첫 위반 → 연쇄
 
 
-def test_intervention_path_still_stubbed():
-    with pytest.raises(StageNotImplemented):
+def test_intervention_path_needs_handle():
+    # 개입 경로(step C 구현)는 모델 내부 접근이 필요 → handle 없으면 ValueError.
+    with pytest.raises(ValueError):
         run(_cond(kind=InterventionKind.VALUE), generate_fn=_fake_gen(Notation.CAMEL))
 
 
