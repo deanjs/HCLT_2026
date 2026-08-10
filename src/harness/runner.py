@@ -142,6 +142,8 @@ def _run_observation(condition: Condition, handle: Optional[ModelHandle]) -> Run
             "span_token_counts": obs["spans"],
             "seq_len": obs["seq_len"],
             "gqa": obs["gqa"],
+            # per-token 상세(code_camel/code_snake) — 밑줄/형태 마커 분석용(§6 불변 저장)
+            "token_detail": obs["token_detail"],
         },
     )
     return RunOutput(condition=condition, metrics=metrics)

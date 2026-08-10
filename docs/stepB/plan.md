@@ -107,3 +107,44 @@ group 구성은 모델마다 다르므로 `num_attention_heads`·`num_key_value_
 ## 다음
 
 관측에서 "지침 평탄 + 충돌 형태 토큰 우세 + ‖av‖ 증가"가 보이면 → **step C**(개입: 선행 코드 KV 치환으로 준수 선호가 회복되는지 = 인과 확인) → **step 1**(층 스윕 + K/V 분해 + v 코사인 궤적).
+
+---
+
+## 한눈에 보는 예시 — 관측 한 번이 어떻게 도는가
+
+지침 = camelCase, 선행 6/6 조건을 예로 든다(이름은 실제 풀에서 뽑힌 것).
+
+**1) 모델에 넣는 것**
+```
+[지침]  In this project we generally write function names in camelCase.
+        Every function name uses one of two styles only: camelCase or snake_case.
+[선행]  def formatMatrix(value): return value        # camel (준수)
+        def validate_stream(value): return value     # snake (충돌)
+        def decode_node(value): return value         # snake (충돌)
+        ... (총 12개: camel 6 / snake 6)
+[요청]  Add a function that clamps a number ...
+```
+
+**2) 재는 순간** — 답을 `def ` 까지 강제로 쓰게 하고, **다음 토큰(=새 이름)을 예측하는 그 query 한 줄**을 붙잡는다.
+```
+... def ▮      ← 이 ▮ 의 query가 앞을 얼마나 보는지 잰다
+```
+
+**3) 세 그룹으로 나눠 잰다** (이름 식별자 토큰만, 본문·`def`·괄호 제외)
+
+| 그룹 | 토큰 | 재는 값 |
+|---|---|---|
+| 지침 | 지침 문장 전부 | 어텐션 합 |
+| camel | `formatMatrix, ...` 6개 이름의 하위 토큰 | 어텐션 합·‖av‖·‖v‖ |
+| snake | `validate_stream, ...` 6개 이름의 하위 토큰 | 어텐션 합·‖av‖·‖v‖ |
+
+각 값은 **층별로** 나온다(36층). `‖av‖ = a·‖v‖`는 GQA 방법 A로 query head를 KV head에 매핑해 계산.
+
+**4) per-token 상세도 함께 저장** — 그룹 값과 별개로 토큰 하나하나의 (a, ‖av‖, ‖v‖)를 남긴다.
+예: `validate_stream` → `validate` / `_stream` (또는 `_`) 조각별 값. 나중에 **밑줄 `_` 토큰이 어근보다 av가 큰가**를 본다(형태 마커가 신호인가).
+
+**5) 결론 두 갈래**
+- **View 1(flip):** 지침을 camel→snake로 뒤집었을 때 "더 보는 쪽"도 snake→camel로 뒤집히면 → 신호는 "글자"가 아니라 **지침 위반 형태**.
+- **View 2(스윕):** 위반을 6→0으로 늘려도 **지침 어텐션이 평탄**하면 → 실패는 "지침을 안 봐서"가 아니라 "코드 형태가 더 세게 끌어서".
+
+이 두 개가 나오면 RQ1(행동)의 내부 기제 = **RQ2 관측 답**이고, 인과는 step C에서 KV 치환으로 확인한다.

@@ -159,3 +159,27 @@ def test_find_char_spans_multiple_occurrences():
     assert len(spans) == 2
     for s, e in spans:
         assert text[s:e] == "def parseHeader("
+
+
+# ── per-token 상세 ────────────────────────────────────────────────────────
+
+def test_span_metrics_detail_returns_per_token():
+    m = span_metrics(_ATTN, _VNORM, group_size=2, spans={"A": [0, 1, 2]}, detail=("A",))["A"]
+    toks = m["tokens"]
+    assert [t["t"] for t in toks] == [0, 1, 2]              # 토큰 인덱스 보존
+    assert all(set(t) == {"t", "a", "av", "v"} for t in toks)
+
+
+def test_detail_sums_back_to_group():
+    # per-token 합/평균이 그룹 값과 정확히 일치해야 한다(내림-집계 가능성 보장).
+    m = span_metrics(_ATTN, _VNORM, group_size=2, spans={"A": [0, 1, 2]}, detail=("A",))["A"]
+    toks = m["tokens"]
+    assert _close(sum(t["a"] for t in toks), m["attention_weight"])   # Σ a_j = 그룹 어텐션 합
+    assert _close(sum(t["av"] for t in toks), m["av_norm"])           # Σ av_j = 그룹 av 합
+    assert _close(sum(t["v"] for t in toks) / len(toks), m["v_norm"])  # mean v_j = 그룹 v 평균
+
+
+def test_detail_only_for_requested_spans():
+    out = span_metrics(_ATTN, _VNORM, group_size=2,
+                       spans={"A": [0], "B": [1]}, detail=("A",))
+    assert "tokens" in out["A"] and "tokens" not in out["B"]

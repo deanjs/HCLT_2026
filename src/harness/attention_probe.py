@@ -19,11 +19,25 @@ from __future__ import annotations
 from typing import Optional, Sequence
 
 
+def _token_stats(attn_last, vnorm_kv, group_size, Hq, Hkv, j):
+    """토큰 j 하나의 (a, av, v) — 그룹 집계와 정확히 합·평균으로 맞물린다.
+
+    a_j  = mean_h a[h,j]                    (구간 attention_weight = Σ_j a_j)
+    av_j = mean_h a[h,j]·‖v[h÷gs,j]‖        (구간 av_norm = Σ_j av_j)
+    v_j  = mean_k ‖v[k,j]‖                  (구간 v_norm = mean_j v_j)
+    """
+    a_j = sum(attn_last[h][j] for h in range(Hq)) / Hq
+    av_j = sum(attn_last[h][j] * vnorm_kv[h // group_size][j] for h in range(Hq)) / Hq
+    v_j = sum(vnorm_kv[k][j] for k in range(Hkv)) / Hkv
+    return a_j, av_j, v_j
+
+
 def span_metrics(
     attn_last: Sequence[Sequence[float]],   # [Hq][seq]  마지막 query의 어텐션(query head별)
     vnorm_kv: Sequence[Sequence[float]],    # [Hkv][seq] 토큰별 value norm(KV head별)
     group_size: int,                        # Hq // Hkv (한 KV를 공유하는 query head 수)
     spans: dict[str, Sequence[int]],        # 구간 이름 → 토큰 인덱스 목록
+    detail: Sequence[str] = (),             # per-token 상세를 담을 구간 이름들
 ) -> dict[str, dict]:
     """구간별 (어텐션 합·‖av‖ 합·‖v‖ 평균)을 계산한다.
 
@@ -34,6 +48,8 @@ def span_metrics(
     - v_norm           : 구간 토큰 ‖v‖의 **평균**(고유 KV head로 접어서). 크기 지표라 합이
                          아니라 토큰당 평균이 맞다.
     - n_tokens         : 구간 토큰 수(합↔평균 환산·해석용).
+    - tokens           : `detail`에 든 구간에 한해 per-token 상세 [{t, a, av, v}, ...].
+                         밑줄/형태 마커 분석 등 사후 분석용(결과는 불변이므로 곱게 저장).
 
     빈 구간은 값이 None이다.
     """
@@ -53,28 +69,23 @@ def span_metrics(
                          "v_norm": None, "n_tokens": 0}
             continue
 
-        # 축 A — 구간 어텐션 합, query head 평균
-        a_per_head = [sum(attn_last[h][j] for j in idxs) for h in range(Hq)]
-        attention_weight = sum(a_per_head) / Hq
+        per_tok = [_token_stats(attn_last, vnorm_kv, group_size, Hq, Hkv, j) for j in idxs]
+        attention_weight = sum(a for a, _, _ in per_tok)      # Σ_j a_j
+        av_norm = sum(av for _, av, _ in per_tok)             # Σ_j av_j
+        v_norm = sum(v for _, _, v in per_tok) / len(per_tok)  # mean_j v_j
 
-        # 축 A×B — ‖av‖ 구간 합, query head 평균. v는 h÷group_size로 매핑(방법 A).
-        av_per_head = [
-            sum(attn_last[h][j] * vnorm_kv[h // group_size][j] for j in idxs)
-            for h in range(Hq)
-        ]
-        av_norm = sum(av_per_head) / Hq
-
-        # 축 B(크기) — ‖v‖ 토큰당 평균(고유 KV head로 접어서). head 0..g-1은 동일 원본이라
-        # 16개 평균이 아니라 KV head 수만큼만 평균낸다(독립 측정 과장 방지).
-        v_vals = [vnorm_kv[k][j] for k in range(Hkv) for j in idxs]
-        v_norm = sum(v_vals) / len(v_vals)
-
-        out[name] = {
+        entry = {
             "attention_weight": attention_weight,
             "av_norm": av_norm,
             "v_norm": v_norm,
             "n_tokens": len(idxs),
         }
+        if name in detail:
+            entry["tokens"] = [
+                {"t": j, "a": a, "av": av, "v": v}
+                for j, (a, av, v) in zip(idxs, per_tok)
+            ]
+        out[name] = entry
     return out
 
 

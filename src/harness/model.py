@@ -163,17 +163,35 @@ class ModelHandle:
         attentions = out.attentions            # tuple[L] each [1, Hq, seq, seq]
         values = _value_cache(out.past_key_values)  # list[L] each [1, Hkv, seq, d]
 
-        # 4) 층별 집계 — 마지막 query 행과 ‖v‖만 리스트로 옮겨 순수 함수 호출
+        # 4) 층별 집계 — 마지막 query 행과 ‖v‖만 리스트로 옮겨 순수 함수 호출.
+        #    code_camel/code_snake는 per-token 상세도 뽑아 따로 저장(밑줄/형태 마커 분석용).
+        detail_spans = ("code_camel", "code_snake")
         per_layer: dict[int, dict] = {}
+        token_detail: dict[str, dict] = {sp: {"tokens": [], "per_layer": {}} for sp in detail_spans}
         for layer in range(len(attentions)):
             attn_last = attentions[layer][0, :, -1, :].float().cpu().tolist()   # [Hq, seq]
             vnorm_kv = values[layer][0].float().norm(dim=-1).cpu().tolist()     # [Hkv, seq]
-            per_layer[layer] = span_metrics(
-                attn_last, vnorm_kv, group_size=gqa.group_size, spans=spans
+            m = span_metrics(
+                attn_last, vnorm_kv, group_size=gqa.group_size,
+                spans=spans, detail=detail_spans,
             )
+            for sp in detail_spans:
+                toks = m[sp].pop("tokens", [])   # 그룹 값만 per_layer에 남기고 상세는 분리
+                if layer == 0:                   # 토큰 텍스트는 층 무관 → 한 번만
+                    token_detail[sp]["tokens"] = [
+                        {"t": d["t"], "text": prompt_text[offsets[d["t"]][0]:offsets[d["t"]][1]]}
+                        for d in toks
+                    ]
+                token_detail[sp]["per_layer"][str(layer)] = {
+                    "a": [d["a"] for d in toks],
+                    "av": [d["av"] for d in toks],
+                    "v": [d["v"] for d in toks],
+                }
+            per_layer[layer] = m
 
         return {
             "per_layer": per_layer,
+            "token_detail": token_detail,
             "spans": {k: len(v) for k, v in spans.items()},
             "seq_len": seq_len,
             "gqa": {
