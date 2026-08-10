@@ -65,3 +65,16 @@ def sum_logprob(token_logprobs: Sequence[float]) -> float:
 def preference_score(logp_compliant: float, logp_violation: float) -> float:
     """준수 선호 점수 S = logP(준수 후보) − logP(위반 후보). 양수=준수 선호."""
     return logp_compliant - logp_violation
+
+
+def peak_layer(recovery_by_layer: dict[int, Optional[float]]) -> Optional[tuple[int, float]]:
+    """층별 회복률에서 **피크 층**과 그 값을 찾는다(step 1 층 스윕 요약).
+
+    회복률 피크가 어느 층인가 = "표기 형태 결정이 어느 처리 단계에서 굳는가"의 답
+    (계획서 §2.5). None(구별 불가) 층은 제외한다. 유효 값이 없으면 None.
+    """
+    valid = {L: r for L, r in recovery_by_layer.items() if r is not None}
+    if not valid:
+        return None
+    L = max(valid, key=lambda k: valid[k])
+    return L, valid[L]

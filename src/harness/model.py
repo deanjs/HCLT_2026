@@ -8,10 +8,10 @@ torch/transformers는 지연 임포트한다. 조건 스키마·결과 저장은
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 from .conditions import ModelSpec
-from .attention_probe import find_char_spans, locate_token_spans, span_metrics
+from .attention_probe import cosine, find_char_spans, locate_token_spans, span_metrics
 from .intervention import align_name_tokens, preference_score, recovery_rate
 
 
@@ -202,7 +202,7 @@ class ModelHandle:
             },
         }
 
-    def intervene_preference(
+    def _preference_context(
         self,
         viol_messages: list[dict[str, str]],
         comp_messages: list[dict[str, str]],
@@ -211,25 +211,18 @@ class ModelHandle:
         donor_names: list[str],
         candidate_compliant: str,
         candidate_violation: str,
-        layer: int,
-        kind: str = "key_value",
         donor_messages: Optional[list[dict[str, str]]] = None,
         forced_prefix: str = "def ",
     ) -> dict[str, Any]:
-        """L25 KV 캐시 편집으로 준수 선호도 회복을 측정한다(step C, 방법 B).
+        """개입 측정의 공통 준비 — 캐시·후보·정렬쌍·채점 함수·기준 S(계획서 §구현).
 
-        절차(계획서 §구현 방식 — KV 캐시 편집, 2 forward, 3 상태):
-          1) 위반/준수 프롬프트를 각각 forward해 캐시를 얻는다.
-          2) 위반 캐시의 `layer`만, 위반 이름 위치에서 준수(공여) 값으로 덮어쓴다.
-             치환은 KV head(그룹) 단위 — 캐시가 [B, n_kv, seq, d]라 자연스럽다.
-          3) 세 상태의 준수 선호 점수 S를 잰다:
-             clean=준수 캐시 / baseline=위반 캐시 / intervened=편집 캐시.
-          회복률 = (S_int − S_base)/(S_clean − S_base).
+        단일 층(step C)과 전 층 스윕(step 1)이 **같은 설정을 공유**한다(CLAUDE.md §3,
+        로직 중복 금지). 여기서 위반/준수/공여 프롬프트를 각 한 번씩만 forward하므로,
+        스윕에서 층을 바꿀 때 선행 프롬프트를 재계산하지 않는다(무료 티어 비용 절감).
 
-        kind: 'key' / 'value' / 'key_value' — 무엇을 치환할지.
-        viol_names·donor_names: 선행 코드의 위반 이름과 그 준수(공여)판(같은 순서·개수).
-        candidate_*: 채점용 고정 후보 두 문자열(생성 대상의 준수판/위반판).
-        텍스트는 그대로 두고 **내부 표현만** 바꾼다(§개념 정리).
+        반환 dict:
+          viol_cache/comp_cache/donor_cache, viol_last, pairs, skipped,
+          S(cache,last)→준수 선호 점수, s_base(위반), s_clean(깨끗).
         """
         import torch
 
@@ -265,7 +258,7 @@ class ModelHandle:
         comp_ids, comp_text, comp_off = prefix(comp_messages)
         cc, cv = cand_ids(candidate_compliant), cand_ids(candidate_violation)
 
-        # 1) base 캐시 — prefix[:-1]을 forward (마지막 토큰은 채점 forward에서 넣는다)
+        # base 캐시 — prefix[:-1]을 forward (마지막 토큰은 채점 forward에서 넣는다)
         with torch.no_grad():
             viol_cache = self.model(viol_ids[:, :-1], use_cache=True).past_key_values
             comp_cache = self.model(comp_ids[:, :-1], use_cache=True).past_key_values
@@ -285,7 +278,8 @@ class ModelHandle:
         )
 
         def logp_candidate(cache, last_tok, cand):
-            # [마지막 프롬프트 토큰 + cand[:-1]]을 편집된 캐시로 forward → 후보 토큰 logP 합
+            # [마지막 프롬프트 토큰 + cand[:-1]]을 캐시로 forward → 후보 토큰 logP 합.
+            # 캐시를 복제해 forward가 원본을 늘리지 않게 한다(층 스윕에서 재사용).
             c = _clone_cache(cache)
             inp = torch.cat([last_tok, cand[:-1].unsqueeze(0)], dim=1)
             with torch.no_grad():
@@ -297,20 +291,74 @@ class ModelHandle:
             return preference_score(logp_candidate(cache, last_tok, cc),
                                     logp_candidate(cache, last_tok, cv))
 
-        s_base = S(viol_cache, viol_last)
-        s_clean = S(comp_cache, comp_last)
+        return {
+            "viol_cache": viol_cache,
+            "comp_cache": comp_cache,
+            "donor_cache": donor_cache,
+            "viol_last": viol_last,
+            "pairs": pairs,
+            "skipped": skipped,
+            "S": S,
+            "s_base": S(viol_cache, viol_last),
+            "s_clean": S(comp_cache, comp_last),
+        }
 
-        # 2) 개입 — 위반 캐시의 layer만 공여값으로 덮어쓴다(KV group 단위)
-        edited = _clone_cache(viol_cache)
-        ek, ev = _cache_kv(edited, layer)
-        dk, dv = _cache_kv(donor_cache, layer)
+    def _score_layer_kind(self, ctx: dict[str, Any], work_cache: Any, layer: int, kind: str) -> float:
+        """work_cache의 `layer`만 공여값으로 치환해 S_int를 잰 뒤 **원상 복구**한다.
+
+        치환은 KV group 단위(캐시 [B, n_kv, seq, d]). 스윕은 하나의 work_cache를
+        층·kind마다 편집→측정→복구로 재사용하므로 층당 깊은 복사가 필요 없다.
+        S 내부에서 다시 복제해 forward하므로 work_cache는 측정 중에도 오염되지 않고,
+        측정 후 백업으로 되돌려 다음 층이 깨끗한 위반 상태에서 시작한다.
+        """
+        pairs = ctx["pairs"]
+        ek, ev = _cache_kv(work_cache, layer)
+        dk, dv = _cache_kv(ctx["donor_cache"], layer)
+        edit_k = kind in ("key", "key_value")
+        edit_v = kind in ("value", "key_value")
+        bk = {vp: ek[:, :, vp, :].clone() for vp, _ in pairs} if edit_k else {}
+        bv = {vp: ev[:, :, vp, :].clone() for vp, _ in pairs} if edit_v else {}
         for vp, dp in pairs:
-            if kind in ("key", "key_value"):
+            if edit_k:
                 ek[:, :, vp, :] = dk[:, :, dp, :]
-            if kind in ("value", "key_value"):
+            if edit_v:
                 ev[:, :, vp, :] = dv[:, :, dp, :]
-        s_int = S(edited, viol_last)
+        s_int = ctx["S"](work_cache, ctx["viol_last"])
+        for vp, b in bk.items():
+            ek[:, :, vp, :] = b
+        for vp, b in bv.items():
+            ev[:, :, vp, :] = b
+        return s_int
 
+    def intervene_preference(
+        self,
+        viol_messages: list[dict[str, str]],
+        comp_messages: list[dict[str, str]],
+        *,
+        viol_names: list[str],
+        donor_names: list[str],
+        candidate_compliant: str,
+        candidate_violation: str,
+        layer: int,
+        kind: str = "key_value",
+        donor_messages: Optional[list[dict[str, str]]] = None,
+        forced_prefix: str = "def ",
+    ) -> dict[str, Any]:
+        """단일 층 KV 캐시 편집으로 준수 선호도 회복을 측정한다(step C, 방법 B).
+
+        세 상태의 준수 선호 점수 S(clean/baseline/intervened)와 회복률을 얻는다.
+        회복률 = (S_int − S_base)/(S_clean − S_base).
+        kind: 'key' / 'value' / 'key_value'. 텍스트는 그대로 두고 **내부 표현만** 바꾼다.
+        """
+        ctx = self._preference_context(
+            viol_messages, comp_messages,
+            viol_names=viol_names, donor_names=donor_names,
+            candidate_compliant=candidate_compliant, candidate_violation=candidate_violation,
+            donor_messages=donor_messages, forced_prefix=forced_prefix,
+        )
+        work = _clone_cache(ctx["viol_cache"])
+        s_int = self._score_layer_kind(ctx, work, layer, kind)
+        s_clean, s_base = ctx["s_clean"], ctx["s_base"]
         return {
             "S_clean": s_clean,
             "S_base": s_base,
@@ -318,7 +366,135 @@ class ModelHandle:
             "recovery": recovery_rate(s_clean, s_base, s_int),
             "layer": layer,
             "kind": kind,
-            "n_substituted_tokens": len(pairs),
+            "n_substituted_tokens": len(ctx["pairs"]),
+            "skipped_names": ctx["skipped"],
+        }
+
+    def intervene_preference_sweep(
+        self,
+        viol_messages: list[dict[str, str]],
+        comp_messages: list[dict[str, str]],
+        *,
+        viol_names: list[str],
+        donor_names: list[str],
+        candidate_compliant: str,
+        candidate_violation: str,
+        layers: Optional[Sequence[int]] = None,
+        kinds: Sequence[str] = ("key", "value", "key_value"),
+        donor_messages: Optional[list[dict[str, str]]] = None,
+        forced_prefix: str = "def ",
+    ) -> dict[str, Any]:
+        """전 층 × K/V 분해 스윕(step 1) — 각 층에서 세 경로의 S_int·회복률을 모두 잰다.
+
+        선행 프롬프트를 한 번만 forward하고(비용 절감), 하나의 work 캐시를 층·kind마다
+        편집→측정→복구로 재사용한다. S_clean·S_base는 층과 무관하므로 한 번만.
+        layers=None이면 전 층(0..num_layers-1). 산출은 층별 회복률 곡선 3개(kind별)와
+        피크 층·K/V 경로별 기여도의 원자료가 된다(계획서 §5 Step 1).
+        """
+        if layers is None:
+            layers = list(range(self.num_layers))
+        ctx = self._preference_context(
+            viol_messages, comp_messages,
+            viol_names=viol_names, donor_names=donor_names,
+            candidate_compliant=candidate_compliant, candidate_violation=candidate_violation,
+            donor_messages=donor_messages, forced_prefix=forced_prefix,
+        )
+        s_clean, s_base = ctx["s_clean"], ctx["s_base"]
+        work = _clone_cache(ctx["viol_cache"])
+        per_layer: dict[int, dict[str, dict[str, Any]]] = {}
+        for layer in layers:
+            by_kind: dict[str, dict[str, Any]] = {}
+            for kind in kinds:
+                s_int = self._score_layer_kind(ctx, work, layer, kind)
+                by_kind[kind] = {
+                    "S_int": s_int,
+                    "recovery": recovery_rate(s_clean, s_base, s_int),
+                }
+            per_layer[int(layer)] = by_kind
+        return {
+            "S_clean": s_clean,
+            "S_base": s_base,
+            "per_layer": per_layer,
+            "layers": list(layers),
+            "kinds": list(kinds),
+            "n_substituted_tokens": len(ctx["pairs"]),
+            "skipped_names": ctx["skipped"],
+        }
+
+    def name_v_cosine_sweep(
+        self,
+        camel_messages: list[dict[str, str]],
+        snake_messages: list[dict[str, str]],
+        *,
+        camel_names: list[str],
+        snake_names: list[str],
+        forced_prefix: str = "def ",
+    ) -> dict[str, Any]:
+        """전 층 v 코사인 궤적(step 1 관측 측) — 같은 이름의 camel판 v와 snake판 v 방향차.
+
+        같은 선행을 camel/snake로만 달리 렌더한 두 프롬프트를 각각 forward해, **역할별로
+        정렬한 이름 토큰 위치**에서 층별 value 벡터의 코사인 유사도를 KV head·토큰쌍
+        평균으로 낸다. ‖v‖(크기)가 안 변해도(배율 1.002) 방향이 갈리는지를 본다
+        (계획서 §2.4). 낮으면 "크기 같아도 다른 정보" → Value 치환 결과와 맞물린다.
+        """
+        import torch
+
+        tok = self.tokenizer
+
+        def prefix(messages):
+            text = tok.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            ) + forced_prefix
+            enc = tok(text, return_tensors="pt", return_offsets_mapping=True,
+                      add_special_tokens=False)
+            offsets = [tuple(o) for o in enc.pop("offset_mapping")[0].tolist()]
+            ids = enc["input_ids"].to(self.model.device)
+            return ids, text, offsets
+
+        def name_positions(text, offsets, names):
+            out = []
+            for nm in names:
+                spans = find_char_spans(text, [f"def {nm}("])
+                if not spans:
+                    out.append([]); continue
+                s, e = spans[0]
+                s, e = s + 4, e - 1
+                out.append([ti for ti, (ts, te) in enumerate(offsets)
+                            if te > ts and ts < e and te > s])
+            return out
+
+        camel_ids, camel_text, camel_off = prefix(camel_messages)
+        snake_ids, snake_text, snake_off = prefix(snake_messages)
+        with torch.no_grad():
+            camel_vals = _value_cache(self.model(camel_ids, use_cache=True).past_key_values)
+            snake_vals = _value_cache(self.model(snake_ids, use_cache=True).past_key_values)
+
+        # 역할별 정렬: 같은 이름의 camel 토큰 위치 ↔ snake 토큰 위치.
+        pairs, skipped = align_name_tokens(
+            name_positions(camel_text, camel_off, camel_names),
+            name_positions(snake_text, snake_off, snake_names),
+        )
+
+        per_layer: dict[int, dict[str, Any]] = {}
+        for layer in range(len(camel_vals)):
+            cvals = camel_vals[layer][0]   # [Hkv, seq, d]
+            svals = snake_vals[layer][0]
+            n_kv = cvals.shape[0]
+            cosines: list[float] = []
+            for cp, sp in pairs:
+                for k in range(n_kv):
+                    u = cvals[k, cp, :].float().cpu().tolist()
+                    w = svals[k, sp, :].float().cpu().tolist()
+                    c = cosine(u, w)
+                    if c is not None:
+                        cosines.append(c)
+            per_layer[int(layer)] = {
+                "v_cosine": (sum(cosines) / len(cosines)) if cosines else None,
+                "n": len(cosines),
+            }
+        return {
+            "per_layer": per_layer,
+            "n_pairs": len(pairs),
             "skipped_names": skipped,
         }
 

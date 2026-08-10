@@ -16,6 +16,7 @@ KV head(h÷group_size)에 매핑해 곱한다. a가 스칼라(≥0)이므로 ‖
 
 from __future__ import annotations
 
+import math
 from typing import Optional, Sequence
 
 
@@ -133,3 +134,23 @@ def find_char_spans(text: str, needles: Sequence[str]) -> list[tuple[int, int]]:
             spans.append((i, i + len(needle)))
             start = i + len(needle)
     return spans
+
+
+def cosine(u: Sequence[float], v: Sequence[float], eps: float = 1e-9) -> Optional[float]:
+    """두 벡터의 코사인 유사도 = 방향 일치도(축 B 방향, step 1).
+
+    ‖v‖(크기)와 달리 크기를 나눠 **방향만** 본다. 1=같은 방향, 0=직교(다른 정보),
+    −1=반대. step B에서 camel→snake의 ‖v‖ 배율이 1.002라 크기로는 축 B를 판정할 수
+    없으므로, 같은 이름의 camel판 v와 snake판 v가 **다른 방향을 싣는지**를 이걸로 본다.
+
+    한쪽이라도 크기가 0에 가까우면(방향 미정의) None. torch 없이 리스트만 다뤄
+    model.py가 이름 토큰의 작은 v 벡터만 넘기면 여기서 단위 테스트가 가능하다.
+    """
+    if len(u) != len(v):
+        raise ValueError(f"길이 불일치: {len(u)} vs {len(v)}")
+    dot = sum(a * b for a, b in zip(u, v))
+    nu = math.sqrt(sum(a * a for a in u))
+    nv = math.sqrt(sum(b * b for b in v))
+    if nu < eps or nv < eps:
+        return None
+    return dot / (nu * nv)
