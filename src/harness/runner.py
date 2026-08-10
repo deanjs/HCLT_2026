@@ -17,8 +17,15 @@ from typing import Callable, Optional
 from .conditions import Condition, InterventionKind
 from .metrics import Metrics
 from .model import ModelHandle
+import re
+
 from .naming import classify_name, first_function_name
-from .prompt import build_instruction_text, first_user_message, next_user_message
+from .prompt import (
+    build_instruction_text,
+    build_preceding_code,
+    first_user_message,
+    next_user_message,
+)
 from .tasks import GENERATION_TASKS
 
 # 생성 함수 타입: 메시지 목록 → 새로 생성된 텍스트.
@@ -59,19 +66,85 @@ def run(
     condition: Condition,
     handle: Optional[ModelHandle] = None,
     *,
+    mode: str = "generate",
     generate_fn: Optional[GenerateFn] = None,
     max_new_tokens: int = 256,
 ) -> RunOutput:
     """조건 하나를 실행한다.
 
-    라우팅은 조건 축에서 결정한다(스크립트 분기 아님). 개입이 있으면 개입 경로,
-    없으면 생성 경로다. 생성은 handle.chat_generate 또는 주입한 generate_fn을 쓴다
+    라우팅은 조건 축과 측정 모드에서 결정한다(스크립트 분기 아님).
+      - mode='generate' : 생성 후 표기 측정(step A). 개입이 있으면 개입 경로(미구현).
+      - mode='observe'  : 개입 없이 이름 생성 시점 query를 구간별로 관측(step B).
+
+    생성은 handle.chat_generate 또는 주입한 generate_fn을 쓴다
     (후자는 모델 없이 파이프라인을 테스트하기 위한 seam).
     """
+    if mode == "observe":
+        return _run_observation(condition, handle)
+    if mode != "generate":
+        raise ValueError(f"알 수 없는 mode: {mode!r} (generate|observe)")
     if condition.intervention.kind is not InterventionKind.NONE:
         # 개입 실험 경로: step C·step 1에서 구현
         raise StageNotImplemented("apply_intervention")
     return _run_generation(condition, handle, generate_fn, max_new_tokens)
+
+
+def _run_observation(condition: Condition, handle: Optional[ModelHandle]) -> RunOutput:
+    """관측 경로(step B) — 이름 생성 시점 query의 구간별 어텐션·‖v‖·‖av‖.
+
+    선행 코드의 camel/snake 이름을 두 그룹으로 나눠, 지침을 생성하는 바로 그 query가
+    어느 그룹을 더 보는지(축 A)와 각 그룹이 잔차에 기여하는 양(‖av‖, 축 A×B)을 잰다.
+    개입은 없다(관측). 인과는 step C.
+    """
+    if handle is None:
+        raise ValueError("관측에는 handle이 필요하다 (모델 내부 접근)")
+
+    # 선행 코드에서 함수 이름을 뽑아 표기별로 그룹화(POOL 배치면 camel 6 / snake 6).
+    preceding = build_preceding_code(condition)
+    names = re.findall(r"def (\w+)\(", preceding)
+    groups: dict[str, list[str]] = {"code_camel": [], "code_snake": []}
+    for nm in names:
+        cls = classify_name(nm)
+        if cls == "camel":
+            groups["code_camel"].append(nm)
+        elif cls == "snake":
+            groups["code_snake"].append(nm)
+
+    instruction_text = build_instruction_text(condition)
+    messages = [
+        {"role": "system", "content": instruction_text},
+        {"role": "user", "content": first_user_message(condition)},
+    ]
+
+    obs = handle.observe_generation_query(
+        messages, groups=groups, instruction_text=instruction_text
+    )
+
+    # per_layer를 Metrics 스키마에 담는다. 구간·지표를 평평한 키로 편다.
+    per_layer: dict[int, dict[str, float]] = {}
+    for layer, by_span in obs["per_layer"].items():
+        flat: dict[str, float] = {}
+        for span_name, vals in by_span.items():
+            for metric_name, v in vals.items():
+                if metric_name == "n_tokens" or v is None:
+                    continue
+                flat[f"{span_name}__{metric_name}"] = v
+        per_layer[int(layer)] = flat
+
+    metrics = Metrics(
+        per_layer=per_layer,
+        extra={
+            "mode": "observe",
+            "target": condition.instruction.target_notation.value,
+            "instruction_form": condition.instruction.form.value,
+            "group_names": {"code_camel": groups["code_camel"],
+                            "code_snake": groups["code_snake"]},
+            "span_token_counts": obs["spans"],
+            "seq_len": obs["seq_len"],
+            "gqa": obs["gqa"],
+        },
+    )
+    return RunOutput(condition=condition, metrics=metrics)
 
 
 def _run_generation(

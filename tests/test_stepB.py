@@ -90,3 +90,72 @@ def test_placement_is_deterministic_per_seed():
     a = build_preceding_code(_cond(Notation.CAMEL, 3))
     b = build_preceding_code(_cond(Notation.CAMEL, 3))
     assert a == b
+
+
+# ── 어텐션 집계(GQA 방법 A) ───────────────────────────────────────────────
+
+from harness.attention_probe import find_char_spans, locate_token_spans, span_metrics
+
+# Hq=4, Hkv=2, group_size=2 → head 0·1→KV0, head 2·3→KV1
+_ATTN = [
+    [0.1, 0.2, 0.7],   # head0 (KV0)
+    [0.0, 0.5, 0.5],   # head1 (KV0)
+    [0.3, 0.3, 0.4],   # head2 (KV1)
+    [0.2, 0.2, 0.6],   # head3 (KV1)
+]
+_VNORM = [
+    [1.0, 2.0, 3.0],     # KV0
+    [10.0, 20.0, 30.0],  # KV1
+]
+
+
+def _close(a, b, tol=1e-9):
+    return abs(a - b) <= tol
+
+
+def test_span_metrics_gqa_mapping_hand_computed():
+    m = span_metrics(_ATTN, _VNORM, group_size=2, spans={"A": [0, 1]})["A"]
+    # 어텐션 합(구간 [0,1]) head 평균: (0.3+0.5+0.6+0.4)/4
+    assert _close(m["attention_weight"], 0.45)
+    # ‖av‖ 합, head는 h//2로 KV 매핑: head0,1→KV0 / head2,3→KV1
+    #   h0:0.1*1+0.2*2=0.5  h1:0.5*2=1.0  h2:0.3*10+0.3*20=9.0  h3:0.2*10+0.2*20=6.0
+    #   평균 (0.5+1.0+9.0+6.0)/4 = 4.125
+    assert _close(m["av_norm"], 4.125)
+    # ‖v‖ 은 고유 KV 2개로 접어 평균: (1+2+10+20)/4 = 8.25
+    assert _close(m["v_norm"], 8.25)
+    assert m["n_tokens"] == 2
+
+
+def test_span_metrics_wrong_kv_mapping_would_differ():
+    # head를 KV에 잘못 매핑(그냥 head 인덱스로 v를 집으면) 값이 달라야 한다 —
+    # 즉 우리 구현이 실제로 h//group_size를 쓰고 있음을 확인.
+    m = span_metrics(_ATTN, _VNORM, group_size=2, spans={"A": [2]})["A"]
+    # 올바른 매핑: head0,1→KV0(v=3.0), head2,3→KV1(v=30.0)
+    #   av = (0.7*3 + 0.5*3 + 0.4*30 + 0.6*30)/4 = (2.1+1.5+12+18)/4 = 8.4
+    assert _close(m["av_norm"], 8.4)
+
+
+def test_span_metrics_empty_span_is_none():
+    m = span_metrics(_ATTN, _VNORM, group_size=2, spans={"E": []})["E"]
+    assert m["attention_weight"] is None and m["n_tokens"] == 0
+
+
+def test_span_metrics_rejects_bad_shapes():
+    import pytest
+    with pytest.raises(ValueError):
+        span_metrics(_ATTN, _VNORM, group_size=3, spans={"A": [0]})  # 4 != 2*3
+
+
+def test_locate_token_spans_overlap():
+    offsets = [(0, 0), (0, 3), (3, 7), (7, 10)]        # 첫 토큰은 특수(빈 offset)
+    got = locate_token_spans(offsets, {"x": [(3, 7)], "y": [(4, 6)]})
+    assert got["x"] == [2]                              # 정확히 겹치는 토큰
+    assert got["y"] == [2]                              # 부분 겹침도 포착
+
+
+def test_find_char_spans_multiple_occurrences():
+    text = "def parseHeader(v): return v\n\ndef parseHeader(v): return v"
+    spans = find_char_spans(text, ["def parseHeader("])
+    assert len(spans) == 2
+    for s, e in spans:
+        assert text[s:e] == "def parseHeader("
