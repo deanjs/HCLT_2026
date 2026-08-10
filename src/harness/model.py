@@ -262,7 +262,7 @@ class ModelHandle:
         with torch.no_grad():
             viol_cache = self.model(viol_ids[:, :-1], use_cache=True).past_key_values
             comp_cache = self.model(comp_ids[:, :-1], use_cache=True).past_key_values
-        viol_last = viol_ids[:, -1:]
+        viol_last, comp_last = viol_ids[:, -1:], comp_ids[:, -1:]
 
         # 공여(donor) 소스: 기본은 준수(clean) 캐시. 무관 코드 통제면 별도 forward.
         if donor_messages is None:
