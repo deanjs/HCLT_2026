@@ -1,0 +1,93 @@
+{
+  "step": "stepC",
+  "rq": "RQ2",
+  "prediction": "compliant 치환 시 준수 선호 회복(≈A2 79%). unrelated_camel(무관 준수형)도 회복하면 신호는 내용 아닌 형태. unrelated_snake(위반형)는 회복 안 됨.",
+  "created_at": "2026-08-10T04:15:10.433938+00:00",
+  "condition": {
+    "model": {
+      "name": "Qwen/Qwen2.5-Coder-3B-Instruct",
+      "family": "qwen",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 0,
+      "n_functions": 12,
+      "composition": "pool",
+      "source": "synthetic",
+      "repo_lang": null,
+      "repo_file": null
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "camel",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "key_value",
+      "layers": [
+        25
+      ],
+      "donor": "compliant",
+      "amplify": null
+    },
+    "seed": 12,
+    "task_ids": [],
+    "tag": null
+  },
+  "metrics": {
+    "compliance_rate": null,
+    "compliance_preference": 1.4687499701976776,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {},
+    "extra": {
+      "mode": "intervene",
+      "donor": "compliant",
+      "target": "camel",
+      "S_clean": 3.4531249403953552,
+      "S_base": -2.9687499329447746,
+      "S_int": 1.4687499701976776,
+      "recovery": 0.6909975654562124,
+      "layer": 25,
+      "kind": "key_value",
+      "n_substituted_tokens": 24,
+      "skipped_names": [],
+      "viol_names": [
+        "parse_buffer",
+        "normalize_stream",
+        "split_packet",
+        "encode_entry",
+        "flatten_handle",
+        "filter_packet",
+        "build_payload",
+        "split_request",
+        "build_record",
+        "serialize_column",
+        "flatten_header",
+        "format_packet"
+      ],
+      "donor_names": [
+        "parseBuffer",
+        "normalizeStream",
+        "splitPacket",
+        "encodeEntry",
+        "flattenHandle",
+        "filterPacket",
+        "buildPayload",
+        "splitRequest",
+        "buildRecord",
+        "serializeColumn",
+        "flattenHeader",
+        "formatPacket"
+      ]
+    }
+  },
+  "meta": {}
+}

@@ -1,0 +1,93 @@
+{
+  "step": "stepC",
+  "rq": "RQ2",
+  "prediction": "compliant 치환 시 준수 선호 회복(≈A2 79%). unrelated_camel(무관 준수형)도 회복하면 신호는 내용 아닌 형태. unrelated_snake(위반형)는 회복 안 됨.",
+  "created_at": "2026-08-10T04:15:36.668554+00:00",
+  "condition": {
+    "model": {
+      "name": "Qwen/Qwen2.5-Coder-3B-Instruct",
+      "family": "qwen",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 0,
+      "n_functions": 12,
+      "composition": "pool",
+      "source": "synthetic",
+      "repo_lang": null,
+      "repo_file": null
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "camel",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "key_value",
+      "layers": [
+        25
+      ],
+      "donor": "unrelated_snake",
+      "amplify": null
+    },
+    "seed": 19,
+    "task_ids": [],
+    "tag": null
+  },
+  "metrics": {
+    "compliance_rate": null,
+    "compliance_preference": -2.109374910593033,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {},
+    "extra": {
+      "mode": "intervene",
+      "donor": "unrelated_snake",
+      "target": "camel",
+      "S_clean": 3.453124925494194,
+      "S_base": -1.9531250298023224,
+      "S_int": -2.109374910593033,
+      "recovery": -0.028901712292757026,
+      "layer": 25,
+      "kind": "key_value",
+      "n_substituted_tokens": 24,
+      "skipped_names": [],
+      "viol_names": [
+        "decode_node",
+        "expand_request",
+        "serialize_stream",
+        "decode_session",
+        "decode_entry",
+        "resolve_vector",
+        "encode_entry",
+        "split_packet",
+        "compress_handle",
+        "flatten_handle",
+        "validate_cursor",
+        "validate_index"
+      ],
+      "donor_names": [
+        "resolve_matrix",
+        "append_handle",
+        "normalize_segment",
+        "flatten_header",
+        "build_buffer",
+        "filter_request",
+        "build_payload",
+        "render_buffer",
+        "append_frame",
+        "compress_header",
+        "split_request",
+        "format_packet"
+      ]
+    }
+  },
+  "meta": {}
+}
