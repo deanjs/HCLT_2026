@@ -13,18 +13,27 @@ from typing import Optional, Sequence
 def align_name_tokens(
     viol_names_tokens: Sequence[Sequence[int]],
     donor_names_tokens: Sequence[Sequence[int]],
+    mode: str = "all",
 ) -> tuple[list[tuple[int, int]], list[int]]:
-    """위반 이름들과 공여 이름들의 토큰 위치를 **역할별(첫↔첫, 둘째↔둘째)로 정렬**한다.
+    """위반 이름들과 공여 이름들의 토큰 위치를 **역할별로 정렬**한다.
 
     viol_names_tokens : 위반 프롬프트에서 각 이름의 토큰 인덱스 목록(이름 순).
     donor_names_tokens: 공여(준수) 프롬프트에서 각 이름의 토큰 인덱스 목록(같은 순서·개수).
 
+    mode:
+      - "all"  : 이름당 **전체 토큰**을 첫↔첫·둘째↔둘째로 정렬(step1 방식). 토큰 수가
+                 다르면(예 snake 3 vs camel 2) 그 이름은 정렬 불가로 **제외**된다.
+      - "last" : 이름당 **마지막 토큰 하나만** 정렬(step2 방식, 옵션 B). 토큰 수가 달라도
+                 항상 1:1이라 제외가 없다. camel/snake 토크나이저가 밑줄을 다르게 쪼개
+                 all 모드가 전부 스킵될 때 쓴다. 표기 차이(`matrix`↔`Matrix`)가 주로
+                 마지막 토큰에 담긴다.
+
     반환:
       pairs   : [(위반_위치, 공여_위치), ...] — 이 위치쌍대로 KV를 치환한다.
-      skipped : 토큰 수가 달라 정렬 불가로 **제외**된 이름 인덱스 목록(기록용).
-
-    우리 풀은 camel·snake 모두 이름당 2토큰이라 대부분 2:2로 정렬된다.
+      skipped : 정렬 불가(빈 토큰 또는 all 모드 토큰 수 불일치)로 **제외**된 이름 인덱스.
     """
+    if mode not in ("all", "last"):
+        raise ValueError('mode는 "all" 또는 "last"만 허용한다')
     if len(viol_names_tokens) != len(donor_names_tokens):
         raise ValueError(
             f"이름 개수 불일치: 위반 {len(viol_names_tokens)} vs 공여 {len(donor_names_tokens)}"
@@ -32,7 +41,13 @@ def align_name_tokens(
     pairs: list[tuple[int, int]] = []
     skipped: list[int] = []
     for i, (vt, dt) in enumerate(zip(viol_names_tokens, donor_names_tokens)):
-        if len(vt) != len(dt):
+        if not vt or not dt:                 # 한쪽이 비면(이름 못 찾음) 정렬 불가
+            skipped.append(i)
+            continue
+        if mode == "last":
+            pairs.append((int(vt[-1]), int(dt[-1])))   # 마지막 토큰만 1:1
+            continue
+        if len(vt) != len(dt):               # all 모드: 토큰 수 다르면 제외
             skipped.append(i)
             continue
         for vp, dp in zip(vt, dt):

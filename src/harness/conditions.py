@@ -195,6 +195,15 @@ class Condition:
     seed: int = 0
     task_ids: tuple[str, ...] = ()  # 생성시킬 함수 과제 식별자(순서 = 생성 순서)
     tag: Optional[str] = None       # 자유 라벨 (예: "holdout", "pilot")
+    # 이름 토큰 정렬 단위(개입 치환·v 코사인 공통):
+    #   "all"  = 이름 전체 토큰(step1, Qwen처럼 camel/snake 2:2일 때)
+    #   "last" = 이름 마지막 토큰만(step2 옵션 B; 토크나이저가 밑줄을 다르게 쪼개
+    #            all이 전부 스킵될 때. 항상 1:1이라 정렬 실패가 없다)
+    token_unit: str = "all"
+
+    def __post_init__(self) -> None:
+        if self.token_unit not in ("all", "last"):
+            raise ValueError('token_unit은 "all" 또는 "last"만 허용한다')
 
     # ── 직렬화 ────────────────────────────────────────────────────────────
 
@@ -227,6 +236,7 @@ class Condition:
             seed=d["seed"],
             task_ids=tuple(d.get("task_ids", ())),
             tag=d.get("tag"),
+            token_unit=d.get("token_unit", "all"),
         )
 
     # ── 파일명 슬러그 ─────────────────────────────────────────────────────
@@ -254,7 +264,10 @@ class Condition:
                 intr += f"-{_slugify(iv.donor)}"
             if iv.amplify is not None:
                 intr += f"-x{iv.amplify:g}".replace(".", "p")
-        parts = [m, pre, ins, intr, f"s{self.seed}"]
+        parts = [m, pre, ins, intr]
+        if self.token_unit != "all":          # all은 생략(기존 슬러그 불변), last만 표기
+            parts.append(f"tok-{self.token_unit}")
+        parts.append(f"s{self.seed}")
         if self.tag:
             parts.append(_slugify(self.tag))
         return "__".join(parts)
