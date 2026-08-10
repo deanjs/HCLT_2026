@@ -122,8 +122,9 @@ group 구성은 모델마다 다르므로 `num_attention_heads`·`num_key_value_
         def validate_stream(value): return value     # snake (충돌)
         def decode_node(value): return value         # snake (충돌)
         ... (총 12개: camel 6 / snake 6)
-[요청]  Add a function that clamps a number ...
+[요청]  Add a function that removes duplicate items from a list ...
 ```
+(생성 대상 과제는 stepA와 동일한 `GENERATION_TASKS[0]`. 원래 clamp였으나 한 단어로 축약돼 표기 판정 불가라 **두 단어 강제 과제(removeDuplicates)로 교체** — stepA-1·A-2 결과 권고.)
 
 **2) 재는 순간** — 답을 `def ` 까지 강제로 쓰게 하고, **다음 토큰(=새 이름)을 예측하는 그 query 한 줄**을 붙잡는다.
 ```

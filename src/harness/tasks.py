@@ -82,7 +82,7 @@ DISTINCT_TASKS: tuple[TaskSpec, ...] = (
 # 선행 함수들 사이에서 변하는 것을 오직 **이름 표기**로 한정해, 어텐션 차이가 내용이
 # 아니라 형태에서 온다는 stepB의 비교를 깨끗하게 만든다.
 
-# 주의: 생성 과제(GENERATION_TASKS: clamp/count/merge)의 단어와 겹치지 않게 한다.
+# 주의: 생성 과제(GENERATION_TASKS: remove/count/merge)의 단어와 겹치지 않게 한다.
 # 선행에 생성 대상과 같은 이름이 있으면 모델이 베끼는 혼입이 생긴다. (merge 제외 → expand)
 _POOL_VERBS: tuple[str, ...] = (
     "parse", "build", "fetch", "render", "encode", "decode", "expand", "split",
@@ -122,12 +122,14 @@ NAME_PAIR_POOL: tuple[TaskSpec, ...] = _build_name_pool()
 
 
 # 생성용 과제 3개 — 서로 다르고 선행과도 다르다. 모델이 이름을 직접 선택한다.
+# 과제 1은 원래 clamp였으나, 모델이 한 단어 `clamp`로 축약해 표기 판정 불가("other")가
+# 됐다(stepA-1·stepA-2 결과). 그 권고대로 **두 단어가 강제되는 과제**로 교체한다.
 GENERATION_TASKS: tuple[TaskSpec, ...] = (
     TaskSpec(
-        words=("clamp", "number"),
-        description="clamps a number between a low and high bound",
-        params=("number", "low", "high"),
-        body=("return max(low, min(number, high))",),
+        words=("remove", "duplicates"),
+        description="removes duplicate items from a list, preserving order",
+        params=("items",),
+        body=("return list(dict.fromkeys(items))",),
     ),
     TaskSpec(
         words=("count", "vowels"),

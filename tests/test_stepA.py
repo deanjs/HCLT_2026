@@ -121,7 +121,7 @@ def test_run_all_compliant():
     assert e["first_violated"] is False
     assert e["subsequent_violation_rate"] == 0.0
     # 생성 원문·함수명이 함께 보존되는가
-    assert e["turn_names"] == ["clampNumber", "countVowels", "mergeDicts"]
+    assert e["turn_names"] == ["removeDuplicates", "countVowels", "mergeDicts"]
     assert len(e["turn_texts"]) == 3 and all("def " in t for t in e["turn_texts"])
 
 
