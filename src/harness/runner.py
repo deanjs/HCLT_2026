@@ -88,9 +88,12 @@ def run(
     if mode == "intervene_generate":
         # 생성 기반 개입(step C 보강): 치환 후 실제로 생성해 표기 회복을 본다
         return _run_intervention_generate(condition, handle, max_new_tokens)
+    if mode == "vcosine":
+        # 관측 측(step 1): 같은 이름 camel/snake v의 층별 코사인 궤적
+        return _run_cosine_sweep(condition, handle)
     if mode != "generate":
         raise ValueError(
-            f"알 수 없는 mode: {mode!r} (generate|observe|intervene_generate)"
+            f"알 수 없는 mode: {mode!r} (generate|observe|intervene_generate|vcosine)"
         )
     if condition.intervention.kind is not InterventionKind.NONE:
         # 개입 경로(step C): KV 치환으로 준수 선호도 회복 측정
@@ -109,8 +112,47 @@ def _run_intervention(condition: Condition, handle: Optional[ModelHandle]) -> Ru
 
     iv = condition.intervention
     if iv.is_sweep:
-        raise ValueError("step C는 단일 층. 전 층 스윕은 step 1")
+        # 전 층 × K/V 분해 스윕(step 1). 단일 층(step C)과 설정을 공유한다.
+        return _run_intervention_sweep(condition, handle)
     layer = list(iv.layers)[0]
+    setup = _preference_setup(condition)
+
+    out = handle.intervene_preference(
+        setup["viol_messages"], setup["comp_messages"],
+        viol_names=setup["viol_names"], donor_names=setup["donor_names"],
+        candidate_compliant=setup["candidate_compliant"],
+        candidate_violation=setup["candidate_violation"],
+        layer=layer, kind=iv.kind.value, donor_messages=setup["donor_messages"],
+    )
+
+    metrics = Metrics(
+        compliance_preference=out["S_int"],
+        extra={
+            "mode": "intervene",
+            "donor": setup["donor_kind"],
+            "target": setup["target"].value,
+            "S_clean": out["S_clean"],
+            "S_base": out["S_base"],
+            "S_int": out["S_int"],
+            "recovery": out["recovery"],
+            "layer": out["layer"],
+            "kind": out["kind"],
+            "n_substituted_tokens": out["n_substituted_tokens"],
+            "skipped_names": out["skipped_names"],
+            "viol_names": setup["viol_names"],
+            "donor_names": setup["donor_names"],
+        },
+    )
+    return RunOutput(condition=condition, metrics=metrics)
+
+
+def _preference_setup(condition: Condition) -> dict:
+    """개입(선호) 입력 구성 — 단일 층(step C)과 전 층 스윕(step 1)이 공유(CLAUDE.md §3).
+
+    선행 위반/준수 텍스트, 치환 대상 위반 이름과 그 공여판, 고정 후보 두 이름, donor
+    종류에 따른 공여 메시지(무관 코드 통제 포함)를 한 번에 만든다. 층·kind만 호출부가
+    바꾼다. 반환 키는 intervene_preference(_sweep)의 인자와 그대로 맞물린다.
+    """
     target = condition.instruction.target_notation
     violation = condition.instruction.violation_notation
 
@@ -134,7 +176,7 @@ def _run_intervention(condition: Condition, handle: Optional[ModelHandle]) -> Ru
     cand_compliant, cand_violation = gt.name(target), gt.name(violation)
 
     # donor 종류 → 무관 코드 통제면 별도 공여 메시지·이름
-    donor_kind = iv.donor or "compliant"
+    donor_kind = condition.intervention.donor or "compliant"
     donor_messages = None
     if donor_kind.startswith("unrelated"):
         un = Notation.CAMEL if donor_kind.endswith("camel") else Notation.SNAKE
@@ -142,29 +184,112 @@ def _run_intervention(condition: Condition, handle: Optional[ModelHandle]) -> Ru
         donor_names = [s.name(un) for s in u_specs]
         donor_messages = msgs(render_preceding([(s, un) for s in u_specs]))
 
-    out = handle.intervene_preference(
-        msgs(viol_text), msgs(comp_text),
-        viol_names=viol_names, donor_names=donor_names,
-        candidate_compliant=cand_compliant, candidate_violation=cand_violation,
-        layer=layer, kind=iv.kind.value, donor_messages=donor_messages,
+    return {
+        "viol_messages": msgs(viol_text),
+        "comp_messages": msgs(comp_text),
+        "viol_names": viol_names,
+        "donor_names": donor_names,
+        "candidate_compliant": cand_compliant,
+        "candidate_violation": cand_violation,
+        "donor_messages": donor_messages,
+        "donor_kind": donor_kind,
+        "target": target,
+    }
+
+
+def _run_intervention_sweep(condition: Condition, handle: Optional[ModelHandle]) -> RunOutput:
+    """전 층 × K/V 분해 스윕(step 1) — 각 층에서 key/value/key_value 3경로의 S_int·회복률.
+
+    산출: 층별 회복률 곡선 3개(kind별) × donor, 피크 층, K/V 경로별 기여도. 관측 측
+    코사인 궤적(mode='vcosine')과 층을 맞춰 보면 축 B(Value 방향) 성립을 교차검증한다.
+    per_layer에는 kind·지표를 평평한 키("key__recovery" 등)로 담는다(observe와 동일 관습).
+    """
+    if handle is None:
+        raise ValueError("개입에는 handle이 필요하다 (모델 내부 접근)")
+
+    setup = _preference_setup(condition)
+    out = handle.intervene_preference_sweep(
+        setup["viol_messages"], setup["comp_messages"],
+        viol_names=setup["viol_names"], donor_names=setup["donor_names"],
+        candidate_compliant=setup["candidate_compliant"],
+        candidate_violation=setup["candidate_violation"],
+        layers=None, kinds=("key", "value", "key_value"),
+        donor_messages=setup["donor_messages"],
     )
 
+    per_layer: dict[int, dict[str, float]] = {}
+    for layer, by_kind in out["per_layer"].items():
+        flat: dict[str, float] = {}
+        for kind, vals in by_kind.items():
+            for metric_name, v in vals.items():
+                if v is None:
+                    continue
+                flat[f"{kind}__{metric_name}"] = v
+        per_layer[int(layer)] = flat
+
     metrics = Metrics(
-        compliance_preference=out["S_int"],
+        per_layer=per_layer,
         extra={
-            "mode": "intervene",
-            "donor": donor_kind,
-            "target": target.value,
+            "mode": "intervene_sweep",
+            "donor": setup["donor_kind"],
+            "target": setup["target"].value,
             "S_clean": out["S_clean"],
             "S_base": out["S_base"],
-            "S_int": out["S_int"],
-            "recovery": out["recovery"],
-            "layer": out["layer"],
-            "kind": out["kind"],
+            "kinds": out["kinds"],
             "n_substituted_tokens": out["n_substituted_tokens"],
             "skipped_names": out["skipped_names"],
-            "viol_names": viol_names,
-            "donor_names": donor_names,
+            "viol_names": setup["viol_names"],
+            "donor_names": setup["donor_names"],
+        },
+    )
+    return RunOutput(condition=condition, metrics=metrics)
+
+
+def _run_cosine_sweep(condition: Condition, handle: Optional[ModelHandle]) -> RunOutput:
+    """관측 측 v 코사인 궤적(step 1) — 같은 이름의 camel판 v와 snake판 v의 층별 방향차.
+
+    개입 스윕(_run_intervention_sweep)의 관측 대응물. ‖v‖(크기)는 안 변해도(배율
+    1.002) 방향이 층을 따라 갈리는지를 본다(계획서 §2.4). 낮은 코사인이 Value 치환
+    회복률 피크와 같은 층에서 나오면 축 B(Value 경로)가 확정된다.
+    """
+    if handle is None:
+        raise ValueError("관측에는 handle이 필요하다 (모델 내부 접근)")
+
+    target = condition.instruction.target_notation
+    violation = condition.instruction.violation_notation
+    specs = preceding_specs(condition)
+
+    # 같은 이름을 전부 camel / 전부 snake로만 달리 렌더 → 역할별 정렬로 방향 비교.
+    camel_text = render_preceding([(s, target) for s, _ in specs])
+    snake_text = render_preceding([(s, violation) for s, _ in specs])
+    camel_names = [s.name(target) for s, _ in specs]
+    snake_names = [s.name(violation) for s, _ in specs]
+
+    system = build_instruction_text(condition)
+
+    def msgs(preceding_text):
+        return [{"role": "system", "content": system},
+                {"role": "user", "content": user_message_with_preceding(condition, preceding_text)}]
+
+    out = handle.name_v_cosine_sweep(
+        msgs(camel_text), msgs(snake_text),
+        camel_names=camel_names, snake_names=snake_names,
+    )
+
+    per_layer: dict[int, dict[str, float]] = {}
+    for layer, vals in out["per_layer"].items():
+        if vals["v_cosine"] is not None:
+            per_layer[int(layer)] = {"v_cosine": vals["v_cosine"]}
+
+    metrics = Metrics(
+        per_layer=per_layer,
+        extra={
+            "mode": "vcosine",
+            "target": target.value,
+            "n_pairs": out["n_pairs"],
+            "skipped_names": out["skipped_names"],
+            "camel_names": camel_names,
+            "snake_names": snake_names,
         },
     )
     return RunOutput(condition=condition, metrics=metrics)
