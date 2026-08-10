@@ -67,4 +67,38 @@ granite-3b-**code**는 Python 코드로 집중 학습돼 **snake_case 프라이�
 - 이 결과는 **target=camel 고정 설계에 한정**된 negative다. granite가 기제 자체를 안 갖는지, 아니면 **자기 선호 방향(snake)으로는** 같은 기제를 보이는지는 미해결.
 - **후속(옵션 B, 방향 뒤집기):** 지침=**snake** / 선행=camel(위반)로 돌려, granite가 *선호 방향*에서 "위반→준수(snake) 회복"의 국소·Value 기제를 보이는지 확인한다. 보이면 "granite도 기제는 동일, 방향만 프라이어를 따름"이라는 강한 결론이 된다. (튜닝이 아니라 별개 조건 — `docs/step2/granite/` 후속 기록.)
 
-**산출물은 `results/step2_granite/`에 불변 저장(§6). 진단은 `notebooks/step2_granite-diagnose.ipynb`.**
+---
+
+## 5. 후속 — 방향 뒤집기(target=snake): 기제 재현
+
+§4 예고대로 **지침=snake / 선행=camel(위반)**으로 돌려 재실행했다(`notebooks/step2_granite-3b-snake.ipynb`, 결과 `results/step2_granite_snake/`, token_unit='last', seed 0–9). 코사인은 target 무관이라 생략.
+
+**결과 (20 스윕, 정렬 12/스킵 0):**
+
+| 지표 | 값 |
+|---|---|
+| S_깨끗(snake) | **+7.59** (granite가 snake를 강하게 선호) |
+| S_위반(camel 선행) | **+1.06** (camel 선행이 +7.6→+1.1로 약화시키나, **뒤집진 못함**) |
+| Value 피크 (rel) | **L24 (0.77)** = **+0.120** |
+| Key 피크 | L24 = +0.048 |
+| Key+Value 피크 | L24 = +0.086 |
+| 형태(compliant≈unrelated_snake) | 예 (0.120 ≈ 0.121) |
+
+![granite snake-flip 회복률](figs/recovery_sweep_snake.png)
+
+**해석 — granite도 기제는 있다(선호 방향 한정).**
+- **국소화 재현**: Value 피크가 **L24(rel 0.77)** 단일 — Qwen(0.71)과 같은 후반. 나머지 층 ≈0.
+- **Value 우세 재현**: Value 0.120 > Key 0.048 (Value가 Key 압도).
+- **형태 재현**: compliant ≈ unrelated_snake.
+- → **"granite는 기제가 없는 게 아니라, snake 프라이어가 너무 강한 모델"**이 확정된다. camel-target에선 프라이어가 target을 이겨 잴 여지가 없었고(§1~3), **프라이어와 정렬된 snake-target에선 후반 단일 층 Value 기제가 드러난다.**
+
+**caveat (정직하게):**
+- 회복 크기 **0.12로 모달**(Qwen 0.65 ≫ granite; stable 0.17급). last-token + snake 3토큰의 `_` 잔존.
+- **Key+Value(0.086) < Value(0.120)** — Key를 더하면 오히려 줄어드는 이상 상호작용(다른 모델의 Value≈Key+Value와 다름). Value 우세 자체는 분명하나 이 상호작용은 미해결 caveat.
+- S_위반이 **양수 유지(+1.06)** — camel 선행이 granite를 camel으로 완전히 뒤집진 못한다(약화만). 프라이어의 강도를 보여준다.
+
+**종합 위치.** 4모델의 Value 피크 상대 위치: Qwen 0.71 / deepseek 0.65 / stable 0.58 / **granite(snake) 0.77** — 전부 후반부(0.58–0.77) 단일 층. granite를 선호 방향으로 보면 **4모델 전부 "후반 단일 층 Value 경로 · 형태 신호"**로 RQ2 일반화가 성립한다. (단 granite는 camel-target negative + snake-flip positive의 **비대칭**을 caveat로 명시.)
+
+---
+
+**산출물은 `results/step2_granite/`(camel-target)·`results/step2_granite_snake/`(snake-flip)에 불변 저장(§6). 진단은 `notebooks/step2_granite-diagnose.ipynb`.**
