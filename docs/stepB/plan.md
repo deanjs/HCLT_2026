@@ -78,19 +78,15 @@ seed만 늘리면 배치 순열만 바뀌고 이름 정체성은 고정 → **�
 
 **이름 위치 teacher-forcing.** 비교 가능하도록 이름 토큰 위치를 강제 고정한다(`def `까지 강제 후 그 위치의 디코딩 query에서 관측). §2.7대로 전체 어텐션 행렬은 저장하지 않고 **생성 시점 query 한 행만** 계산해 구간·그룹별 합을 저장한다.
 
-## GQA 주의 (관측·개입 공통)
+## GQA 주의 (stepB 관측)
 
 Qwen2.5-Coder-3B는 query head 16 / KV head 2 → **query 8개가 KV 1개 공유**(group 8). 매핑 규칙: `KV head = query head ÷ group_size(=8)` 내림. 예) query head 5 → KV head 0. 곱셈은 `av[h,j] = a[h,j] · v[h÷8, j]` (a는 query head별 16종, v는 KV head별 2종).
 
-**관측(stepB) — 방법 A: repeat 후 정렬.**
-- HF의 `repeat_kv`로 v를 2개 → 16개로 복제해 늘리면 query head와 인덱스가 1:1 정렬된다. 이후 `av[h,j] = attn[h,j] * v_exp[h,j]`로 곱하면 `h÷8` 매핑을 repeat 함수가 대신 처리 → **수동 매핑 실수 여지 없음**. stepB는 v를 건드리지 않으므로 이 방식을 쓴다.
-- `‖v‖` 보고 시엔 반대로 **고유 KV head 2개로 접어서** 낸다(head 0~7의 ‖v‖는 동일 원본이라 16개 평균은 독립 측정 16개인 척 오해를 부른다).
+**repeat 후 정렬로 계산한다.** HF의 `repeat_kv`로 v를 2개 → 16개로 복제해 늘리면 query head와 인덱스가 1:1 정렬된다. 이후 `av[h,j] = attn[h,j] * v_exp[h,j]`로 곱하면 `h÷8` 매핑을 repeat 함수가 대신 처리 → **수동 매핑 실수 여지 없음**. stepB는 관측만 하고 v를 건드리지 않으므로 이 방식으로 충분하다.
 
-**개입(step C~) — 방법 B: 원본 KV head 단위.**
-- 방법 A는 개입에 못 쓴다. 늘린 복사본 중 특정 query head짜리만 치환해도 다음 forward에서 `repeat_kv`가 원본에서 다시 복제해 **덮어써 무효가 된다**.
-- 따라서 치환은 반드시 **원본 KV head(2개) 단위**로, 명시적 `v[h//8]` 인덱싱으로 수행한다. 개별 query head만 치환은 물리적으로 불가능(K·V가 그룹에 속하지 query head에 없음).
+**‖v‖ 보고 시엔** 반대로 **고유 KV head 2개로 접어서** 낸다(head 0~7의 ‖v‖는 동일 원본이라 16개 평균은 독립 측정 16개인 척 오해를 부른다).
 
-**공통:** group 구성은 모델마다 다르므로 `num_attention_heads`·`num_key_value_heads`를 **런타임에 config에서 읽어** group_size를 계산한다. 하드코딩·추정 금지(§2.6). step 2에서 모델 바꾸면 이 숫자가 달라진다.
+group 구성은 모델마다 다르므로 `num_attention_heads`·`num_key_value_heads`를 **런타임에 config에서 읽어** group_size를 계산한다. 하드코딩·추정 금지(§2.6). (개입 시의 치환 단위 주의는 step C 계획에서 다룬다.)
 
 ## 설정
 
