@@ -85,8 +85,13 @@ def run(
     """
     if mode == "observe":
         return _run_observation(condition, handle)
+    if mode == "intervene_generate":
+        # 생성 기반 개입(step C 보강): 치환 후 실제로 생성해 표기 회복을 본다
+        return _run_intervention_generate(condition, handle, max_new_tokens)
     if mode != "generate":
-        raise ValueError(f"알 수 없는 mode: {mode!r} (generate|observe)")
+        raise ValueError(
+            f"알 수 없는 mode: {mode!r} (generate|observe|intervene_generate)"
+        )
     if condition.intervention.kind is not InterventionKind.NONE:
         # 개입 경로(step C): KV 치환으로 준수 선호도 회복 측정
         return _run_intervention(condition, handle)
@@ -160,6 +165,82 @@ def _run_intervention(condition: Condition, handle: Optional[ModelHandle]) -> Ru
             "skipped_names": out["skipped_names"],
             "viol_names": viol_names,
             "donor_names": donor_names,
+        },
+    )
+    return RunOutput(condition=condition, metrics=metrics)
+
+
+def _run_intervention_generate(
+    condition: Condition, handle: Optional[ModelHandle], max_new_tokens: int
+) -> RunOutput:
+    """생성 기반 개입(step C 보강) — 치환 전/후로 실제 이름을 생성해 표기를 분류한다.
+
+    선호 점수(intervene_preference)의 직관적 재확인. baseline(개입 없음)과
+    intervened(L25 KV를 준수 값으로 치환) 각각에서 나온 첫 함수 이름의 표기를 잰다.
+    """
+    if handle is None:
+        raise ValueError("개입에는 handle이 필요하다 (모델 내부 접근)")
+
+    iv = condition.intervention
+    if iv.is_sweep:
+        raise ValueError("step C는 단일 층. 전 층 스윕은 step 1")
+    layer = list(iv.layers)[0]
+    target = condition.instruction.target_notation
+    violation = condition.instruction.violation_notation
+
+    specs = preceding_specs(condition)
+    viol_text = render_preceding(specs)
+    viol_specs = [s for s, nt in specs if nt == violation]
+    viol_names = [s.name(violation) for s in viol_specs]
+    donor_names = [s.name(target) for s in viol_specs]
+
+    system = build_instruction_text(condition)
+
+    def msgs(preceding_text):
+        return [{"role": "system", "content": system},
+                {"role": "user", "content": user_message_with_preceding(condition, preceding_text)}]
+
+    # donor 소스: 기본은 같은 이름 준수판, 무관 통제면 별도 코드
+    donor_kind = iv.donor or "compliant"
+    if donor_kind.startswith("unrelated"):
+        un = Notation.CAMEL if donor_kind.endswith("camel") else Notation.SNAKE
+        u_specs = unrelated_specs(condition, len(viol_specs))
+        donor_names = [s.name(un) for s in u_specs]
+        donor_messages = msgs(render_preceding([(s, un) for s in u_specs]))
+    else:
+        donor_messages = msgs(render_preceding([(s, target) for s, _ in specs]))
+
+    out = handle.intervene_generate(
+        msgs(viol_text),
+        viol_names=viol_names, donor_names=donor_names, donor_messages=donor_messages,
+        layer=layer, kind=iv.kind.value, max_new_tokens=max_new_tokens,
+    )
+
+    lang = "python"
+    name_base = first_function_name(out["text_baseline"], lang)
+    name_int = first_function_name(out["text_intervened"], lang)
+    notation_base = classify_name(name_base) if name_base else "other"
+    notation_int = classify_name(name_int) if name_int else "other"
+    tv = target.value
+
+    metrics = Metrics(
+        compliance_rate=1.0 if notation_int == tv else 0.0,   # 개입 후 준수 여부
+        extra={
+            "mode": "intervene_generate",
+            "donor": donor_kind,
+            "target": tv,
+            "notation_baseline": notation_base,
+            "notation_intervened": notation_int,
+            "baseline_compliant": notation_base == tv,
+            "intervened_compliant": notation_int == tv,
+            "name_baseline": name_base,
+            "name_intervened": name_int,
+            "text_baseline": out["text_baseline"],
+            "text_intervened": out["text_intervened"],
+            "layer": out["layer"],
+            "kind": out["kind"],
+            "n_substituted_tokens": out["n_substituted_tokens"],
+            "skipped_names": out["skipped_names"],
         },
     )
     return RunOutput(condition=condition, metrics=metrics)

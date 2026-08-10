@@ -322,6 +322,99 @@ class ModelHandle:
             "skipped_names": skipped,
         }
 
+    def intervene_generate(
+        self,
+        viol_messages: list[dict[str, str]],
+        *,
+        viol_names: list[str],
+        donor_names: list[str],
+        donor_messages: list[dict[str, str]],
+        layer: int,
+        kind: str = "key_value",
+        forced_prefix: str = "def ",
+        max_new_tokens: int = 24,
+    ) -> dict[str, Any]:
+        """치환 전(baseline)·후(intervened)로 **실제 이름을 생성**한다(step C 생성 기반).
+
+        선호 점수(intervene_preference)의 직관적 재확인 — 텍스트는 그대로 두고 L25 KV만
+        준수 값으로 바꾼 뒤, `def ` 다음을 그리디로 생성해 어떤 표기의 이름이 나오는지 본다.
+        donor_messages는 공여 표현의 출처 프롬프트(같은 이름 준수판 또는 무관 준수/위반 코드).
+        분류(camel/snake)는 호출부에서 한다 — 여기서는 생성 텍스트만 돌려준다.
+        """
+        import torch
+
+        tok = self.tokenizer
+
+        def prefix(messages):
+            text = tok.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            ) + forced_prefix
+            enc = tok(text, return_tensors="pt", return_offsets_mapping=True,
+                      add_special_tokens=False)
+            offsets = [tuple(o) for o in enc.pop("offset_mapping")[0].tolist()]
+            return enc["input_ids"].to(self.model.device), text, offsets
+
+        def name_positions(text, offsets, names):
+            out = []
+            for nm in names:
+                spans = find_char_spans(text, [f"def {nm}("])
+                if not spans:
+                    out.append([]); continue
+                s, e = spans[0]
+                s, e = s + 4, e - 1
+                out.append([ti for ti, (ts, te) in enumerate(offsets)
+                            if te > ts and ts < e and te > s])
+            return out
+
+        viol_ids, viol_text, viol_off = prefix(viol_messages)
+        d_ids, donor_text, donor_off = prefix(donor_messages)
+        viol_last = viol_ids[:, -1:]
+
+        with torch.no_grad():
+            viol_cache = self.model(viol_ids[:, :-1], use_cache=True).past_key_values
+            donor_cache = self.model(d_ids[:, :-1], use_cache=True).past_key_values
+
+        pairs, skipped = align_name_tokens(
+            name_positions(viol_text, viol_off, viol_names),
+            name_positions(donor_text, donor_off, donor_names),
+        )
+
+        def greedy(cache):
+            c = _clone_cache(cache)
+            cur = viol_last
+            gen: list[int] = []
+            with torch.no_grad():
+                for _ in range(max_new_tokens):
+                    out = self.model(cur, past_key_values=c, use_cache=True)
+                    c = out.past_key_values
+                    nxt = int(out.logits[0, -1].argmax())
+                    if nxt == tok.eos_token_id:
+                        break
+                    gen.append(nxt)
+                    cur = torch.tensor([[nxt]], device=self.model.device)
+            return tok.decode(gen)
+
+        text_baseline = greedy(viol_cache)                 # 개입 없음
+
+        edited = _clone_cache(viol_cache)                  # 개입: layer만 공여값으로
+        ek, ev = _cache_kv(edited, layer)
+        dk, dv = _cache_kv(donor_cache, layer)
+        for vp, dp in pairs:
+            if kind in ("key", "key_value"):
+                ek[:, :, vp, :] = dk[:, :, dp, :]
+            if kind in ("value", "key_value"):
+                ev[:, :, vp, :] = dv[:, :, dp, :]
+        text_intervened = greedy(edited)
+
+        return {
+            "text_baseline": forced_prefix + text_baseline,
+            "text_intervened": forced_prefix + text_intervened,
+            "layer": layer,
+            "kind": kind,
+            "n_substituted_tokens": len(pairs),
+            "skipped_names": skipped,
+        }
+
 
 def _cache_kv(cache: Any, layer: int):
     """layer의 (key, value) 텐서 [B, n_kv, seq, d]를 돌려준다(편집 가능한 원본 참조).
