@@ -1,0 +1,69 @@
+{
+  "step": "stepC-gen",
+  "rq": "RQ2",
+  "prediction": "baseline은 위반 표기. compliant/unrelated_camel 치환 후 준수 표기로 상승. unrelated_snake는 그대로 위반.",
+  "created_at": "2026-08-10T05:03:19.365886+00:00",
+  "condition": {
+    "model": {
+      "name": "Qwen/Qwen2.5-Coder-3B-Instruct",
+      "family": "qwen",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 0,
+      "n_functions": 12,
+      "composition": "pool",
+      "source": "synthetic",
+      "repo_lang": null,
+      "repo_file": null
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "camel",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "key_value",
+      "layers": [
+        25
+      ],
+      "donor": "compliant",
+      "amplify": null
+    },
+    "seed": 15,
+    "task_ids": [],
+    "tag": null
+  },
+  "metrics": {
+    "compliance_rate": 1.0,
+    "compliance_preference": null,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {},
+    "extra": {
+      "mode": "intervene_generate",
+      "donor": "compliant",
+      "target": "camel",
+      "notation_baseline": "snake",
+      "notation_intervened": "camel",
+      "baseline_compliant": false,
+      "intervened_compliant": true,
+      "name_baseline": "remove_duplicates",
+      "name_intervened": "removeDuplicates",
+      "text_baseline": "def  remove_duplicates(input_list):\n    seen = set()\n    result = []\n    for item in input_list:\n        if item not in seen:\n            seen.add(item)\n            result.append(item)\n    return result",
+      "text_intervened": "def  removeDuplicates(lst):\n    seen = set()\n    result = []\n    for item in lst:\n        if item not in seen:\n            seen.add(item)\n            result.append(item)\n    return result",
+      "layer": 25,
+      "kind": "key_value",
+      "n_substituted_tokens": 24,
+      "skipped_names": []
+    }
+  },
+  "meta": {}
+}

@@ -12,6 +12,7 @@ from typing import Any, Optional
 
 from .conditions import ModelSpec
 from .attention_probe import find_char_spans, locate_token_spans, span_metrics
+from .intervention import align_name_tokens, preference_score, recovery_rate
 
 
 @dataclass
@@ -201,17 +202,255 @@ class ModelHandle:
             },
         }
 
+    def intervene_preference(
+        self,
+        viol_messages: list[dict[str, str]],
+        comp_messages: list[dict[str, str]],
+        *,
+        viol_names: list[str],
+        donor_names: list[str],
+        candidate_compliant: str,
+        candidate_violation: str,
+        layer: int,
+        kind: str = "key_value",
+        donor_messages: Optional[list[dict[str, str]]] = None,
+        forced_prefix: str = "def ",
+    ) -> dict[str, Any]:
+        """L25 KV 캐시 편집으로 준수 선호도 회복을 측정한다(step C, 방법 B).
+
+        절차(계획서 §구현 방식 — KV 캐시 편집, 2 forward, 3 상태):
+          1) 위반/준수 프롬프트를 각각 forward해 캐시를 얻는다.
+          2) 위반 캐시의 `layer`만, 위반 이름 위치에서 준수(공여) 값으로 덮어쓴다.
+             치환은 KV head(그룹) 단위 — 캐시가 [B, n_kv, seq, d]라 자연스럽다.
+          3) 세 상태의 준수 선호 점수 S를 잰다:
+             clean=준수 캐시 / baseline=위반 캐시 / intervened=편집 캐시.
+          회복률 = (S_int − S_base)/(S_clean − S_base).
+
+        kind: 'key' / 'value' / 'key_value' — 무엇을 치환할지.
+        viol_names·donor_names: 선행 코드의 위반 이름과 그 준수(공여)판(같은 순서·개수).
+        candidate_*: 채점용 고정 후보 두 문자열(생성 대상의 준수판/위반판).
+        텍스트는 그대로 두고 **내부 표현만** 바꾼다(§개념 정리).
+        """
+        import torch
+
+        tok = self.tokenizer
+
+        def prefix(messages):
+            text = tok.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            ) + forced_prefix
+            enc = tok(text, return_tensors="pt", return_offsets_mapping=True,
+                      add_special_tokens=False)
+            offsets = [tuple(o) for o in enc.pop("offset_mapping")[0].tolist()]
+            ids = enc["input_ids"].to(self.model.device)
+            return ids, text, offsets
+
+        def name_positions(text, offsets, names):
+            out = []
+            for nm in names:
+                spans = find_char_spans(text, [f"def {nm}("])
+                if not spans:
+                    out.append([]); continue
+                s, e = spans[0]
+                s, e = s + 4, e - 1                      # "def " 뒤 ~ "(" 앞 = 이름
+                out.append([ti for ti, (ts, te) in enumerate(offsets)
+                            if te > ts and ts < e and te > s])
+            return out
+
+        def cand_ids(s):
+            return tok(s, return_tensors="pt", add_special_tokens=False)["input_ids"][0].to(
+                self.model.device)
+
+        viol_ids, viol_text, viol_off = prefix(viol_messages)
+        comp_ids, comp_text, comp_off = prefix(comp_messages)
+        cc, cv = cand_ids(candidate_compliant), cand_ids(candidate_violation)
+
+        # 1) base 캐시 — prefix[:-1]을 forward (마지막 토큰은 채점 forward에서 넣는다)
+        with torch.no_grad():
+            viol_cache = self.model(viol_ids[:, :-1], use_cache=True).past_key_values
+            comp_cache = self.model(comp_ids[:, :-1], use_cache=True).past_key_values
+        viol_last, comp_last = viol_ids[:, -1:], comp_ids[:, -1:]
+
+        # 공여(donor) 소스: 기본은 준수(clean) 캐시. 무관 코드 통제면 별도 forward.
+        if donor_messages is None:
+            donor_cache, donor_text, donor_off = comp_cache, comp_text, comp_off
+        else:
+            d_ids, donor_text, donor_off = prefix(donor_messages)
+            with torch.no_grad():
+                donor_cache = self.model(d_ids[:, :-1], use_cache=True).past_key_values
+
+        pairs, skipped = align_name_tokens(
+            name_positions(viol_text, viol_off, viol_names),
+            name_positions(donor_text, donor_off, donor_names),
+        )
+
+        def logp_candidate(cache, last_tok, cand):
+            # [마지막 프롬프트 토큰 + cand[:-1]]을 편집된 캐시로 forward → 후보 토큰 logP 합
+            c = _clone_cache(cache)
+            inp = torch.cat([last_tok, cand[:-1].unsqueeze(0)], dim=1)
+            with torch.no_grad():
+                logits = self.model(inp, past_key_values=c, use_cache=True).logits[0]
+            lp = torch.log_softmax(logits.float(), dim=-1)
+            return float(sum(lp[k, cand[k]].item() for k in range(cand.shape[0])))
+
+        def S(cache, last_tok):
+            return preference_score(logp_candidate(cache, last_tok, cc),
+                                    logp_candidate(cache, last_tok, cv))
+
+        s_base = S(viol_cache, viol_last)
+        s_clean = S(comp_cache, comp_last)
+
+        # 2) 개입 — 위반 캐시의 layer만 공여값으로 덮어쓴다(KV group 단위)
+        edited = _clone_cache(viol_cache)
+        ek, ev = _cache_kv(edited, layer)
+        dk, dv = _cache_kv(donor_cache, layer)
+        for vp, dp in pairs:
+            if kind in ("key", "key_value"):
+                ek[:, :, vp, :] = dk[:, :, dp, :]
+            if kind in ("value", "key_value"):
+                ev[:, :, vp, :] = dv[:, :, dp, :]
+        s_int = S(edited, viol_last)
+
+        return {
+            "S_clean": s_clean,
+            "S_base": s_base,
+            "S_int": s_int,
+            "recovery": recovery_rate(s_clean, s_base, s_int),
+            "layer": layer,
+            "kind": kind,
+            "n_substituted_tokens": len(pairs),
+            "skipped_names": skipped,
+        }
+
+    def intervene_generate(
+        self,
+        viol_messages: list[dict[str, str]],
+        *,
+        viol_names: list[str],
+        donor_names: list[str],
+        donor_messages: list[dict[str, str]],
+        layer: int,
+        kind: str = "key_value",
+        forced_prefix: str = "def ",
+        max_new_tokens: int = 24,
+    ) -> dict[str, Any]:
+        """치환 전(baseline)·후(intervened)로 **실제 이름을 생성**한다(step C 생성 기반).
+
+        선호 점수(intervene_preference)의 직관적 재확인 — 텍스트는 그대로 두고 L25 KV만
+        준수 값으로 바꾼 뒤, `def ` 다음을 그리디로 생성해 어떤 표기의 이름이 나오는지 본다.
+        donor_messages는 공여 표현의 출처 프롬프트(같은 이름 준수판 또는 무관 준수/위반 코드).
+        분류(camel/snake)는 호출부에서 한다 — 여기서는 생성 텍스트만 돌려준다.
+        """
+        import torch
+
+        tok = self.tokenizer
+
+        def prefix(messages):
+            text = tok.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            ) + forced_prefix
+            enc = tok(text, return_tensors="pt", return_offsets_mapping=True,
+                      add_special_tokens=False)
+            offsets = [tuple(o) for o in enc.pop("offset_mapping")[0].tolist()]
+            return enc["input_ids"].to(self.model.device), text, offsets
+
+        def name_positions(text, offsets, names):
+            out = []
+            for nm in names:
+                spans = find_char_spans(text, [f"def {nm}("])
+                if not spans:
+                    out.append([]); continue
+                s, e = spans[0]
+                s, e = s + 4, e - 1
+                out.append([ti for ti, (ts, te) in enumerate(offsets)
+                            if te > ts and ts < e and te > s])
+            return out
+
+        viol_ids, viol_text, viol_off = prefix(viol_messages)
+        d_ids, donor_text, donor_off = prefix(donor_messages)
+        viol_last = viol_ids[:, -1:]
+
+        with torch.no_grad():
+            viol_cache = self.model(viol_ids[:, :-1], use_cache=True).past_key_values
+            donor_cache = self.model(d_ids[:, :-1], use_cache=True).past_key_values
+
+        pairs, skipped = align_name_tokens(
+            name_positions(viol_text, viol_off, viol_names),
+            name_positions(donor_text, donor_off, donor_names),
+        )
+
+        def greedy(cache):
+            c = _clone_cache(cache)
+            cur = viol_last
+            gen: list[int] = []
+            with torch.no_grad():
+                for _ in range(max_new_tokens):
+                    out = self.model(cur, past_key_values=c, use_cache=True)
+                    c = out.past_key_values
+                    nxt = int(out.logits[0, -1].argmax())
+                    if nxt == tok.eos_token_id:
+                        break
+                    gen.append(nxt)
+                    cur = torch.tensor([[nxt]], device=self.model.device)
+            return tok.decode(gen)
+
+        text_baseline = greedy(viol_cache)                 # 개입 없음
+
+        edited = _clone_cache(viol_cache)                  # 개입: layer만 공여값으로
+        ek, ev = _cache_kv(edited, layer)
+        dk, dv = _cache_kv(donor_cache, layer)
+        for vp, dp in pairs:
+            if kind in ("key", "key_value"):
+                ek[:, :, vp, :] = dk[:, :, dp, :]
+            if kind in ("value", "key_value"):
+                ev[:, :, vp, :] = dv[:, :, dp, :]
+        text_intervened = greedy(edited)
+
+        return {
+            "text_baseline": forced_prefix + text_baseline,
+            "text_intervened": forced_prefix + text_intervened,
+            "layer": layer,
+            "kind": kind,
+            "n_substituted_tokens": len(pairs),
+            "skipped_names": skipped,
+        }
+
+
+def _cache_kv(cache: Any, layer: int):
+    """layer의 (key, value) 텐서 [B, n_kv, seq, d]를 돌려준다(편집 가능한 원본 참조).
+
+    transformers 버전마다 KV 캐시 레이아웃이 다르다:
+      - 신형(4.54+): cache.layers[i].keys / .values
+      - 구형: cache.key_cache[i] / cache.value_cache[i]
+      - legacy tuple: cache[i][0] / cache[i][1]
+    """
+    if hasattr(cache, "layers"):
+        lyr = cache.layers[layer]
+        return lyr.keys, lyr.values
+    if hasattr(cache, "key_cache") and hasattr(cache, "value_cache"):
+        return cache.key_cache[layer], cache.value_cache[layer]
+    return cache[layer][0], cache[layer][1]
+
+
+def _clone_cache(cache: Any):
+    """past_key_values 깊은 복사 — 후보마다 캐시를 재사용하되 서로 오염되지 않게.
+
+    torch 텐서는 deepcopy가 같은 디바이스에 clone을 만든다. 내부 구조를 몰라도
+    버전 무관하게 안전하다(Cache 객체의 리스트·텐서·카운터를 통째로 복제).
+    """
+    import copy
+    return copy.deepcopy(cache)
+
 
 def _value_cache(past: Any) -> list:
-    """past_key_values에서 층별 value 텐서 [1, Hkv, seq, d] 목록을 꺼낸다.
-
-    transformers 버전에 따라 legacy tuple 또는 Cache 객체다. 둘 다 처리한다.
-    """
+    """past_key_values에서 층별 value 텐서 [1, Hkv, seq, d] 목록을 꺼낸다(버전 무관)."""
     if past is None:
         raise ValueError("past_key_values가 None이다 (use_cache=True 필요)")
-    if hasattr(past, "value_cache"):          # DynamicCache 등
+    if hasattr(past, "layers"):                       # 신형 DynamicCache
+        return [lyr.values for lyr in past.layers]
+    if hasattr(past, "value_cache"):                  # 구형 DynamicCache
         return list(past.value_cache)
-    return [layer_kv[1] for layer_kv in past]  # legacy tuple: (key, value)
+    return [layer_kv[1] for layer_kv in past]         # legacy tuple
 
 
 def load_model(

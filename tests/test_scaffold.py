@@ -127,11 +127,11 @@ def test_run_routes_to_generation_stage():
         run(make_condition())  # 개입 없음 → 생성 경로, 그러나 생성기 미제공
 
 
-def test_run_routes_to_intervention_stage():
-    c = make_condition(intervention=Intervention(kind=InterventionKind.KEY_VALUE, layers="sweep"))
-    with pytest.raises(StageNotImplemented) as ei:
-        run(c)  # 개입 있음 → 개입 경로
-    assert ei.value.stage_key == "apply_intervention"
+def test_run_routes_to_intervention_path():
+    # 개입 있음 → 개입 경로. 모델(handle) 없이는 ValueError (step C에서 구현됨).
+    c = make_condition(intervention=Intervention(kind=InterventionKind.KEY_VALUE, layers=[25]))
+    with pytest.raises(ValueError):
+        run(c)
 
 
 def test_pipeline_description_lists_all_stages():
