@@ -40,7 +40,7 @@ from .prompt import (
 )
 from .results import ResultRecord, result_path, save_result
 from .runner import PIPELINE, run
-from .tasks import CLONE_TASK, DISTINCT_TASKS, GENERATION_TASKS, TaskSpec
+from .tasks import CLONE_TASK, DISTINCT_TASKS, GENERATION_TASKS, NAME_PAIR_POOL, TaskSpec
 
 __all__ = [
     "Composition",
@@ -67,6 +67,7 @@ __all__ = [
     "CLONE_TASK",
     "DISTINCT_TASKS",
     "GENERATION_TASKS",
+    "NAME_PAIR_POOL",
     "TaskSpec",
     "ResultRecord",
     "result_path",

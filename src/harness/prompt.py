@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 from .conditions import Composition, Condition, InstructionForm, Notation, Source
-from .tasks import CLONE_TASK, DISTINCT_TASKS, GENERATION_TASKS, TaskSpec
+from .tasks import CLONE_TASK, DISTINCT_TASKS, GENERATION_TASKS, NAME_PAIR_POOL, TaskSpec
 
 _STYLE = {Notation.CAMEL: "camelCase", Notation.SNAKE: "snake_case"}
 
@@ -63,12 +63,20 @@ def build_preceding_code(condition: Condition) -> str:
     if p.composition is Composition.CLONE:
         # 같은 과제를 인덱스만 바꿔 12복제. 표기는 notations[i].
         funcs = [CLONE_TASK.render(nt, idx=i + 1) for i, nt in enumerate(notations)]
-    else:  # DISTINCT — 서로 다른 과제 12개. 표기는 notations[i], 인덱스 없음.
+    elif p.composition is Composition.DISTINCT:
+        # 서로 다른 과제 12개(고정 풀 앞에서부터). 표기는 notations[i], 인덱스 없음.
         if p.n_functions > len(DISTINCT_TASKS):
             raise ValueError(
                 f"distinct 과제 풀({len(DISTINCT_TASKS)})이 n_functions({p.n_functions})보다 작다"
             )
         funcs = [DISTINCT_TASKS[i].render(nt) for i, nt in enumerate(notations)]
+    else:  # POOL — stepB 균형 관측: 이름 짝 풀(~80)에서 seed로 서로 다른 n개를 뽑는다.
+        if p.n_functions > len(NAME_PAIR_POOL):
+            raise ValueError(
+                f"이름 풀({len(NAME_PAIR_POOL)})이 n_functions({p.n_functions})보다 작다"
+            )
+        idxs = random.Random(condition.seed).sample(range(len(NAME_PAIR_POOL)), p.n_functions)
+        funcs = [NAME_PAIR_POOL[j].render(nt) for j, nt in zip(idxs, notations)]
     return "\n\n".join(funcs)
 
 

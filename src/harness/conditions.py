@@ -25,6 +25,7 @@ class Composition(str, Enum):
     """선행 코드 구성 — 12개 함수가 같은 일을 하는가(클론), 다른 일을 하는가."""
     CLONE = "clone"        # 동일 작업 12개 (기본, A1 재현용)
     DISTINCT = "distinct"  # 서로 다른 작업 12개 (step 3 ablation)
+    POOL = "pool"          # 이름 짝 풀(~80)에서 seed로 뽑은 서로 다른 이름 (stepB 균형 관측)
 
 
 class Source(str, Enum):
