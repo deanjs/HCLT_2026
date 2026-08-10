@@ -323,41 +323,41 @@ class ModelHandle:
         }
 
 
-def _is_dynamic_cache(cache: Any) -> bool:
-    return hasattr(cache, "key_cache") and hasattr(cache, "value_cache")
-
-
 def _cache_kv(cache: Any, layer: int):
-    """layer의 (key, value) 텐서 [B, n_kv, seq, d]를 돌려준다(편집 가능한 원본 참조)."""
-    if _is_dynamic_cache(cache):
+    """layer의 (key, value) 텐서 [B, n_kv, seq, d]를 돌려준다(편집 가능한 원본 참조).
+
+    transformers 버전마다 KV 캐시 레이아웃이 다르다:
+      - 신형(4.54+): cache.layers[i].keys / .values
+      - 구형: cache.key_cache[i] / cache.value_cache[i]
+      - legacy tuple: cache[i][0] / cache[i][1]
+    """
+    if hasattr(cache, "layers"):
+        lyr = cache.layers[layer]
+        return lyr.keys, lyr.values
+    if hasattr(cache, "key_cache") and hasattr(cache, "value_cache"):
         return cache.key_cache[layer], cache.value_cache[layer]
     return cache[layer][0], cache[layer][1]
 
 
 def _clone_cache(cache: Any):
-    """past_key_values 깊은 복사 — 후보마다 캐시를 재사용하되 서로 오염되지 않게."""
-    if _is_dynamic_cache(cache):
-        from transformers.cache_utils import DynamicCache
-        new = DynamicCache()
-        new.key_cache = [k.clone() for k in cache.key_cache]
-        new.value_cache = [v.clone() for v in cache.value_cache]
-        for attr in ("_seen_tokens",):
-            if hasattr(cache, attr):
-                setattr(new, attr, getattr(cache, attr))
-        return new
-    return tuple((k.clone(), v.clone()) for (k, v) in cache)
+    """past_key_values 깊은 복사 — 후보마다 캐시를 재사용하되 서로 오염되지 않게.
+
+    torch 텐서는 deepcopy가 같은 디바이스에 clone을 만든다. 내부 구조를 몰라도
+    버전 무관하게 안전하다(Cache 객체의 리스트·텐서·카운터를 통째로 복제).
+    """
+    import copy
+    return copy.deepcopy(cache)
 
 
 def _value_cache(past: Any) -> list:
-    """past_key_values에서 층별 value 텐서 [1, Hkv, seq, d] 목록을 꺼낸다.
-
-    transformers 버전에 따라 legacy tuple 또는 Cache 객체다. 둘 다 처리한다.
-    """
+    """past_key_values에서 층별 value 텐서 [1, Hkv, seq, d] 목록을 꺼낸다(버전 무관)."""
     if past is None:
         raise ValueError("past_key_values가 None이다 (use_cache=True 필요)")
-    if hasattr(past, "value_cache"):          # DynamicCache 등
+    if hasattr(past, "layers"):                       # 신형 DynamicCache
+        return [lyr.values for lyr in past.layers]
+    if hasattr(past, "value_cache"):                  # 구형 DynamicCache
         return list(past.value_cache)
-    return [layer_kv[1] for layer_kv in past]  # legacy tuple: (key, value)
+    return [layer_kv[1] for layer_kv in past]         # legacy tuple
 
 
 def load_model(
