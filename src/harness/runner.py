@@ -123,6 +123,7 @@ def _run_intervention(condition: Condition, handle: Optional[ModelHandle]) -> Ru
         candidate_compliant=setup["candidate_compliant"],
         candidate_violation=setup["candidate_violation"],
         layer=layer, kind=iv.kind.value, donor_messages=setup["donor_messages"],
+        token_unit=condition.token_unit,
     )
 
     metrics = Metrics(
@@ -215,6 +216,7 @@ def _run_intervention_sweep(condition: Condition, handle: Optional[ModelHandle])
         candidate_violation=setup["candidate_violation"],
         layers=None, kinds=("key", "value", "key_value"),
         donor_messages=setup["donor_messages"],
+        token_unit=condition.token_unit,
     )
 
     per_layer: dict[int, dict[str, float]] = {}
@@ -274,6 +276,7 @@ def _run_cosine_sweep(condition: Condition, handle: Optional[ModelHandle]) -> Ru
     out = handle.name_v_cosine_sweep(
         msgs(camel_text), msgs(snake_text),
         camel_names=camel_names, snake_names=snake_names,
+        token_unit=condition.token_unit,
     )
 
     per_layer: dict[int, dict[str, float]] = {}
@@ -339,6 +342,7 @@ def _run_intervention_generate(
         msgs(viol_text),
         viol_names=viol_names, donor_names=donor_names, donor_messages=donor_messages,
         layer=layer, kind=iv.kind.value, max_new_tokens=max_new_tokens,
+        token_unit=condition.token_unit,
     )
 
     lang = "python"
