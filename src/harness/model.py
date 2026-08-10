@@ -213,6 +213,7 @@ class ModelHandle:
         candidate_violation: str,
         donor_messages: Optional[list[dict[str, str]]] = None,
         forced_prefix: str = "def ",
+        token_unit: str = "all",
     ) -> dict[str, Any]:
         """개입 측정의 공통 준비 — 캐시·후보·정렬쌍·채점 함수·기준 S(계획서 §구현).
 
@@ -275,6 +276,7 @@ class ModelHandle:
         pairs, skipped = align_name_tokens(
             name_positions(viol_text, viol_off, viol_names),
             name_positions(donor_text, donor_off, donor_names),
+            mode=token_unit,
         )
 
         def logp_candidate(cache, last_tok, cand):
@@ -343,18 +345,20 @@ class ModelHandle:
         kind: str = "key_value",
         donor_messages: Optional[list[dict[str, str]]] = None,
         forced_prefix: str = "def ",
+        token_unit: str = "all",
     ) -> dict[str, Any]:
         """단일 층 KV 캐시 편집으로 준수 선호도 회복을 측정한다(step C, 방법 B).
 
         세 상태의 준수 선호 점수 S(clean/baseline/intervened)와 회복률을 얻는다.
         회복률 = (S_int − S_base)/(S_clean − S_base).
         kind: 'key' / 'value' / 'key_value'. 텍스트는 그대로 두고 **내부 표현만** 바꾼다.
+        token_unit: 'all'(전체 토큰) / 'last'(마지막 토큰만) — 이름 토큰 정렬 단위.
         """
         ctx = self._preference_context(
             viol_messages, comp_messages,
             viol_names=viol_names, donor_names=donor_names,
             candidate_compliant=candidate_compliant, candidate_violation=candidate_violation,
-            donor_messages=donor_messages, forced_prefix=forced_prefix,
+            donor_messages=donor_messages, forced_prefix=forced_prefix, token_unit=token_unit,
         )
         work = _clone_cache(ctx["viol_cache"])
         s_int = self._score_layer_kind(ctx, work, layer, kind)
@@ -383,6 +387,7 @@ class ModelHandle:
         kinds: Sequence[str] = ("key", "value", "key_value"),
         donor_messages: Optional[list[dict[str, str]]] = None,
         forced_prefix: str = "def ",
+        token_unit: str = "all",
     ) -> dict[str, Any]:
         """전 층 × K/V 분해 스윕(step 1) — 각 층에서 세 경로의 S_int·회복률을 모두 잰다.
 
@@ -390,6 +395,7 @@ class ModelHandle:
         편집→측정→복구로 재사용한다. S_clean·S_base는 층과 무관하므로 한 번만.
         layers=None이면 전 층(0..num_layers-1). 산출은 층별 회복률 곡선 3개(kind별)와
         피크 층·K/V 경로별 기여도의 원자료가 된다(계획서 §5 Step 1).
+        token_unit: 'all'(전체 토큰) / 'last'(마지막 토큰만) — 이름 토큰 정렬 단위.
         """
         if layers is None:
             layers = list(range(self.num_layers))
@@ -397,7 +403,7 @@ class ModelHandle:
             viol_messages, comp_messages,
             viol_names=viol_names, donor_names=donor_names,
             candidate_compliant=candidate_compliant, candidate_violation=candidate_violation,
-            donor_messages=donor_messages, forced_prefix=forced_prefix,
+            donor_messages=donor_messages, forced_prefix=forced_prefix, token_unit=token_unit,
         )
         s_clean, s_base = ctx["s_clean"], ctx["s_base"]
         work = _clone_cache(ctx["viol_cache"])
@@ -429,6 +435,7 @@ class ModelHandle:
         camel_names: list[str],
         snake_names: list[str],
         forced_prefix: str = "def ",
+        token_unit: str = "all",
     ) -> dict[str, Any]:
         """전 층 v 코사인 궤적(step 1 관측 측) — 같은 이름의 camel판 v와 snake판 v 방향차.
 
@@ -473,6 +480,7 @@ class ModelHandle:
         pairs, skipped = align_name_tokens(
             name_positions(camel_text, camel_off, camel_names),
             name_positions(snake_text, snake_off, snake_names),
+            mode=token_unit,
         )
 
         per_layer: dict[int, dict[str, Any]] = {}
@@ -509,6 +517,7 @@ class ModelHandle:
         kind: str = "key_value",
         forced_prefix: str = "def ",
         max_new_tokens: int = 24,
+        token_unit: str = "all",
     ) -> dict[str, Any]:
         """치환 전(baseline)·후(intervened)로 **실제 이름을 생성**한다(step C 생성 기반).
 
@@ -553,6 +562,7 @@ class ModelHandle:
         pairs, skipped = align_name_tokens(
             name_positions(viol_text, viol_off, viol_names),
             name_positions(donor_text, donor_off, donor_names),
+            mode=token_unit,
         )
 
         def greedy(cache):
