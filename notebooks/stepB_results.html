@@ -1,0 +1,354 @@
+<style>
+  :root{
+    --ground:#F5F6F8; --surface:#FFFFFF; --raise:#FBFBFC;
+    --ink:#191C22; --body:#333944; --muted:#5D6470; --faint:#E7E9ED; --hair:#ECEEF1;
+    --accent:#3A3E68;
+    --camel:#2563C9; --snake:#C6771A; --instr:#8A46C4;
+    --ok:#2E7D52; --ok-bg:#E7F1EB; --warn:#9A6314; --warn-bg:#F5ECDD;
+    --shadow:0 1px 2px rgba(20,24,40,.05), 0 6px 20px rgba(20,24,40,.05);
+  }
+  :root:not([data-theme="light"]){
+    @media (prefers-color-scheme: dark){
+      --ground:#131519; --surface:#1A1D23; --raise:#20242B;
+      --ink:#E9EBEF; --body:#C4C9D2; --muted:#949BA6; --faint:#282C34; --hair:#242830;
+      --accent:#AEB2E6;
+      --camel:#5A8DEE; --snake:#CE7F1F; --instr:#9E6FD8;
+      --ok:#4FB07E; --ok-bg:#18241D; --warn:#D2933A; --warn-bg:#241E14;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.32);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#131519; --surface:#1A1D23; --raise:#20242B;
+    --ink:#E9EBEF; --body:#C4C9D2; --muted:#949BA6; --faint:#282C34; --hair:#242830;
+    --accent:#AEB2E6;
+    --camel:#5A8DEE; --snake:#CE7F1F; --instr:#9E6FD8;
+    --ok:#4FB07E; --ok-bg:#18241D; --warn:#D2933A; --warn-bg:#241E14;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.32);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    background:var(--ground); color:var(--body);
+    font:16px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    margin:0; padding:0;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:900px; margin:0 auto; padding:clamp(24px,5vw,64px) clamp(18px,4vw,40px)}
+  .serif{font-family:Georgia,"Iowan Old Style","Times New Roman",serif}
+  .mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; font-variant-numeric:tabular-nums}
+
+  /* ── header ── */
+  header{border-bottom:1px solid var(--hair); padding-bottom:26px; margin-bottom:34px}
+  .eyebrow{font:600 12px/1.4 ui-monospace,Menlo,monospace; letter-spacing:.14em; text-transform:uppercase; color:var(--muted)}
+  h1{font-family:Georgia,serif; font-weight:600; font-size:clamp(28px,5vw,42px); line-height:1.12;
+     color:var(--ink); margin:.32em 0 .12em; text-wrap:balance; letter-spacing:-.01em}
+  .lede{font-size:clamp(16px,2.4vw,18px); color:var(--body); max-width:64ch; margin:.4em 0 0}
+  .meta{display:flex; flex-wrap:wrap; gap:8px; margin-top:20px}
+  .chip{font:500 12.5px/1 ui-monospace,Menlo,monospace; color:var(--muted);
+        background:var(--raise); border:1px solid var(--hair); border-radius:999px; padding:7px 12px}
+  .chip b{color:var(--ink); font-weight:600}
+
+  /* ── answer callout ── */
+  .answer{background:var(--surface); border:1px solid var(--hair); border-left:3px solid var(--accent);
+          border-radius:12px; padding:22px 24px; margin:0 0 40px; box-shadow:var(--shadow)}
+  .answer .eyebrow{color:var(--accent)}
+  .answer p{margin:.5em 0 0; color:var(--ink); font-size:17px}
+  .answer .k{color:var(--snake); font-weight:600}
+
+  /* ── sections ── */
+  section{margin:0 0 46px}
+  h2{font-family:Georgia,serif; font-weight:600; font-size:24px; color:var(--ink);
+     margin:0 0 2px; letter-spacing:-.01em}
+  h2 .num{font:600 13px/1 ui-monospace,monospace; color:var(--muted); margin-right:10px; letter-spacing:.05em}
+  .sub{color:var(--muted); font-size:14.5px; margin:0 0 18px}
+
+  figure{margin:0 0 8px; background:var(--surface); border:1px solid var(--hair);
+          border-radius:12px; padding:20px 20px 14px; box-shadow:var(--shadow); overflow-x:auto}
+  figcaption{font-size:13px; color:var(--muted); margin-top:10px; padding-top:10px; border-top:1px solid var(--hair)}
+  svg{display:block; width:100%; height:auto}
+  .g-grid{stroke:var(--faint); stroke-width:1}
+  .g-axis{stroke:var(--hair); stroke-width:1}
+  .g-tick{fill:var(--muted); font:500 11px ui-monospace,monospace}
+  .g-lab{fill:var(--body); font:600 12px ui-monospace,monospace}
+  .g-zero{stroke:var(--muted); stroke-dasharray:3 3; stroke-width:1; opacity:.6}
+
+  /* ── tables ── */
+  .tbl-wrap{overflow-x:auto; margin:16px 0 6px}
+  table{border-collapse:collapse; width:100%; font-size:14px}
+  th,td{padding:9px 12px; text-align:right; border-bottom:1px solid var(--hair); white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  thead th{font:600 12px/1.3 ui-monospace,monospace; letter-spacing:.03em; color:var(--muted);
+           text-transform:uppercase; border-bottom:1.5px solid var(--hair)}
+  tbody td{font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums; color:var(--body)}
+  tbody tr:hover{background:var(--raise)}
+  td.hi{color:var(--ink); font-weight:600}
+  .swatch{display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:7px; vertical-align:baseline}
+  .dot-camel{background:var(--camel)} .dot-snake{background:var(--snake)} .dot-instr{background:var(--instr)}
+
+  .tag{display:inline-block; font:600 10.5px/1 ui-monospace,monospace; padding:3px 6px; border-radius:4px;
+       letter-spacing:.03em; vertical-align:middle}
+  .tag-conf{color:#fff; background:var(--snake)} .tag-comp{color:var(--muted); background:var(--faint)}
+
+  /* ── interpretation ── */
+  .read{margin-top:16px}
+  .read p{margin:.55em 0}
+  .read strong{color:var(--ink)}
+  .verdict{display:inline-flex; align-items:center; gap:7px; font:600 12px/1 ui-monospace,monospace;
+           padding:5px 10px; border-radius:6px; letter-spacing:.02em; margin-bottom:6px}
+  .v-ok{color:var(--ok); background:var(--ok-bg)}
+  .v-warn{color:var(--warn); background:var(--warn-bg)}
+
+  .legend{display:flex; flex-wrap:wrap; gap:16px; margin:2px 0 12px; font-size:12.5px; color:var(--muted)}
+  .legend span{display:inline-flex; align-items:center}
+
+  footer{margin-top:20px; padding-top:22px; border-top:1px solid var(--hair); color:var(--muted); font-size:13px}
+  a{color:var(--camel)}
+  @media (prefers-reduced-motion:no-preference){ tbody tr{transition:background .12s} }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">step B · RQ2 관측 · A2 재현</div>
+    <h1>표기 규약 준수 실패의 내부 신호</h1>
+    <p class="lede">이름을 생성하는 그 순간, 모델은 지침을 멀쩡히 보면서도 <b style="color:var(--ink)">코드 안의 지침‑위반 표기 형태</b>에 더 강하게 끌린다. 그 신호는 특정 층(L25)에 뭉쳐 있다.</p>
+    <div class="meta">
+      <span class="chip">모델 <b>Qwen2.5‑Coder‑3B</b></span>
+      <span class="chip">조건 <b>140</b> (7×20 seed)</span>
+      <span class="chip">기준층 <b>L25</b> / 36</span>
+      <span class="chip">GQA <b>16 Q · 2 KV · group 8</b></span>
+      <span class="chip">지표 <b>어텐션 · ‖v‖ · ‖av‖</b></span>
+    </div>
+  </header>
+
+  <div class="answer">
+    <div class="eyebrow">RQ2 관측 답</div>
+    <p>경쟁 신호는 코드의 <span class="k">지침 위반 표기 형태</span>다 — 내용도, 단순 prior도 아니다. 지침을 뒤집으면 우세도 따라 뒤집히고(형태), 위반이 쌓여도 지침 어텐션은 <span class="k">평탄</span>하다(결핍 아님). 이 신호는 <span class="k">L25에 국소화</span>되며, 크기(‖v‖)가 아니라 어텐션 배분에서 드러난다.</p>
+  </div>
+
+  <!-- VIEW 1 -->
+  <section>
+    <h2><span class="num">01</span>View 1 — 충돌 표기를 더 보는가 <span style="font-size:14px;color:var(--muted);font-weight:400">(flip 2×2, 선행 6/6)</span></h2>
+    <p class="sub">코드를 camel 6 / snake 6으로 고정하고 <b>지침만 뒤집어</b> ‘위반’을 만든다. 이름 생성 시점 query가 각 표기 그룹을 얼마나 보는지(@L25).</p>
+    <figure>
+      <div class="legend" aria-hidden="true">
+        <span><i class="swatch dot-camel"></i>camel 토큰</span>
+        <span><i class="swatch dot-snake"></i>snake 토큰</span>
+        <span><span class="tag tag-conf" style="padding:2px 5px">충돌</span>&nbsp;= 현재 지침 위반 표기</span>
+      </div>
+      <svg id="c-view1" viewBox="0 0 720 300" role="img" aria-label="지침별 camel/snake 토큰 어텐션 막대그래프"></svg>
+      <figcaption>지침이 뒤집히면 ‘더 보는 쪽’도 뒤집힌다 — 신호가 특정 글자가 아니라 <b>지침과의 충돌</b>임을 뜻한다.</figcaption>
+    </figure>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>지침</th><th>camel 토큰</th><th>snake 토큰</th><th>더 본 쪽</th><th>지침 구간</th></tr></thead>
+        <tbody>
+          <tr><td>camelCase</td><td>0.1263</td><td class="hi">0.1442 <span class="tag tag-conf">충돌</span></td><td>snake</td><td>0.1302</td></tr>
+          <tr><td>snakeCase</td><td class="hi">0.1454 <span class="tag tag-conf">충돌</span></td><td>0.1210</td><td>camel</td><td>0.1316</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="read">
+      <span class="verdict v-ok">✓ 예측대로</span>
+      <p><strong>충돌 표기를 더 본다.</strong> camel 지침이면 snake를(0.144&gt;0.126), snake 지침이면 camel을(0.145&gt;0.121) 더 본다. 우세가 지침 따라 뒤집히므로 <strong>‘snake prior’가 아니라 위반 형태가 신호</strong>다.</p>
+      <p><strong>지침 어텐션은 두 조건 평탄</strong>(0.130 vs 0.132) — 실패가 “지침을 덜 봐서”가 아니다. ‖v‖ 크기도 대체로 대칭(~9.0–9.4), 효과는 크기가 아니라 <strong>어텐션 축</strong>에서 온다.</p>
+    </div>
+  </section>
+
+  <!-- LAYER -->
+  <section>
+    <h2><span class="num">02</span>어느 층인가 — L25 국소 피크</h2>
+    <p class="sub">충돌 우세(충돌−준수 어텐션)를 전 36층에서. 대부분 ~0 근처인데 <b>L25에서만 뾰족하게</b> 솟는다.</p>
+    <figure>
+      <svg id="c-layer" viewBox="0 0 720 300" role="img" aria-label="층별 충돌 우세 라인차트, L25 피크"></svg>
+      <figcaption>L25에서 +0.021 (이웃 층의 약 5배). seed별로도 <b>29/40 = 72%</b>가 충돌&gt;준수. 예비(A2)의 L25와 일치.</figcaption>
+    </figure>
+    <div class="read">
+      <span class="verdict v-ok">✓ 국소화 확인</span>
+      <p>신호가 전 층에 퍼진 게 아니라 <strong>단일 층(L25)에 뭉쳐</strong> 있다. “모델마다 위치는 달라도 항상 특정 층에 국소화된다”는 RQ2 가설의 직접 근거. <strong>왜 L25인지, Key/Value 어느 경로인지</strong>는 step 1(전 층 스윕 + K/V 분해)에서.</p>
+    </div>
+  </section>
+
+  <!-- VIEW 2 -->
+  <section>
+    <h2><span class="num">03</span>View 2 — 위반이 쌓여도 지침을 덜 보나 <span style="font-size:14px;color:var(--muted);font-weight:400">(스윕, 지침=camel)</span></h2>
+    <p class="sub">선행 camel 개수를 6→0으로 줄이며(위반↑, stepA와 동일 격자) 지침 어텐션을 본다(@L25).</p>
+    <figure>
+      <div class="legend" aria-hidden="true">
+        <span><i class="swatch dot-instr"></i>지침 어텐션</span>
+        <span><i class="swatch dot-snake"></i>snake 어텐션 합</span>
+        <span><i class="swatch" style="background:var(--snake);opacity:.5"></i>snake 토큰당</span>
+      </div>
+      <svg id="c-view2" viewBox="0 0 720 300" role="img" aria-label="위반 개수별 어텐션 스윕 라인차트"></svg>
+      <figcaption>지침·토큰당 어텐션은 <b>평탄</b>; 합만 오른다 — 순전히 위반 토큰 <b>개수</b>가 늘어서다.</figcaption>
+    </figure>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>n_compliant</th><th>지침 어텐션</th><th>snake 합</th><th>snake 토큰당</th><th>snake ‖av‖</th><th>토큰수</th></tr></thead>
+        <tbody>
+          <tr><td>6</td><td>0.1302</td><td>0.1442</td><td>0.01202</td><td>1.240</td><td>12</td></tr>
+          <tr><td>4</td><td>0.1306</td><td>0.1764</td><td>0.01103</td><td>1.506</td><td>16</td></tr>
+          <tr><td>3</td><td>0.1308</td><td>0.1927</td><td>0.01070</td><td>1.642</td><td>18</td></tr>
+          <tr><td>2</td><td>0.1313</td><td>0.2131</td><td>0.01065</td><td>1.806</td><td>20</td></tr>
+          <tr><td>1</td><td>0.1317</td><td>0.2325</td><td>0.01057</td><td>1.966</td><td>22</td></tr>
+          <tr><td>0</td><td class="hi">0.1327</td><td>0.2598</td><td>0.01082</td><td>2.196</td><td>24</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="read">
+      <span class="verdict v-ok">✓ 예측대로</span>
+      <p><strong>지침 어텐션 완전 평탄</strong>(0.130→0.133). 위반이 최대여도 모델은 지침을 덜 보지 않는다 → <strong>실패는 ‘지침 결핍’이 아니다.</strong> 지침 구간을 균질 증폭하는 기존 기법(Spotlight)의 전제와 정면 충돌한다.</p>
+      <p>충돌 어텐션 <em>합</em>은 늘지만 <strong>토큰당은 평탄</strong>(~0.011). 즉 총 충돌 질량 증가는 <strong>위반 토큰 개수</strong> 때문. stepA 절벽과 연결된다 — 준수 예시가 사라지고 위반 토큰이 쌓일수록, 지침은 그대로인데 잔차에 실리는 충돌 질량만 커진다.</p>
+    </div>
+  </section>
+
+  <!-- MARKERS -->
+  <section>
+    <h2><span class="num">04</span>밑줄이 신호인가 — 판정 보류</h2>
+    <p class="sub">per‑token 상세로 snake의 <span class="mono">_</span>, camel의 대문자 토큰이 어근보다 ‖av‖가 큰지 보려 했으나, 토큰화 한계에 막혔다(@L25).</p>
+    <figure>
+      <svg id="c-mark" viewBox="0 0 720 260" role="img" aria-label="형태 마커 vs 어근 토큰 av 비교"></svg>
+      <figcaption><b>Qwen 토크나이저가 <span class="mono">_</span>를 다음 단어에 붙인다</b> (<span class="mono">format_matrix → [ format][_matrix]</span>, 독립 <span class="mono">_</span> 0개). 그래서 이 비교는 사실상 ‘둘째 단어 vs 첫째 단어’다.</figcaption>
+    </figure>
+    <div class="read">
+      <span class="verdict v-warn">⚠ 판정 불가 (한계)</span>
+      <p>snake는 어근(첫 단어) av가 크고, camel은 대문자(둘째 단어) av가 크다 — <strong>방향이 상충</strong>해 형태 마커 신호로 해석할 수 없다. 밑줄이 독립 토큰이 아니라 <span class="mono">_matrix</span>로 융합되기 때문. <strong>한계로 기록</strong>하고, 밑줄 자체가 신호인지는 step 8(로짓 렌즈)로 이관한다.</p>
+    </div>
+  </section>
+
+  <footer>
+    <p><strong style="color:var(--ink)">다음.</strong> step C — L25에서 선행 KV를 준수 값으로 치환(방법 B, KV group 단위)해 준수 선호가 회복되는지 = 관측이 <em>인과</em>인지 확인. · step 1 — 전 층 스윕 + Key/Value 분해 + v 코사인 궤적.</p>
+    <p style="margin-top:10px">데이터: <span class="mono">results/stepB/</span> 140건 · 설계: <span class="mono">docs/stepB/plan.md</span> · 해석: <span class="mono">docs/stepB/results.md</span></p>
+  </footer>
+</div>
+
+<script>
+const DATA = {
+  view1:{camel:{c:0.12626,s:0.14424,instr:0.13022},snake:{c:0.14541,s:0.12095,instr:0.13163}},
+  layer:[-0.00036,-0.00487,0.00052,0.00523,-0.00043,0.00474,0.00107,0.00203,0.00066,0.00064,0.00371,0.00075,0.00003,0.00004,-0.00033,0.00339,0.00068,0.00169,0.00058,0.00198,0.00402,0.00257,0.00341,0.00161,0.00034,0.02122,0.00344,-0.00285,-0.00049,-0.00163,0.00336,0.00061,0.00234,0.00302,0.00124,0.00378],
+  view2:[{n:6,instr:0.13022,sum:0.14424,per:0.01202},{n:4,instr:0.13058,sum:0.17641,per:0.01103},{n:3,instr:0.13079,sum:0.19265,per:0.01070},{n:2,instr:0.13125,sum:0.21309,per:0.01065},{n:1,instr:0.13169,sum:0.23246,per:0.01057},{n:0,instr:0.13268,sum:0.25977,per:0.01082}],
+  mark:{snake:{root:0.10995,marker:0.07500},camel:{root:0.10095,marker:0.12550}}
+};
+const cv=s=>getComputedStyle(document.documentElement).getPropertyValue(s).trim();
+const NS="http://www.w3.org/2000/svg";
+function el(t,a={},kids=[]){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);for(const c of kids)e.appendChild(c);return e;}
+function txt(t,a={}){const e=el("text",a);e.textContent=t;return e;}
+function title(node,t){const x=el("title");x.textContent=t;node.appendChild(x);return node;}
+
+// ── View 1 grouped bars ──
+function view1(){
+  const svg=document.getElementById("c-view1"); svg.innerHTML="";
+  const W=720,H=300,ml=54,mr=20,mt=18,mb=52, pw=W-ml-mr, ph=H-mt-mb;
+  const groups=[["지침: camelCase","camel"],["지침: snakeCase","snake"]];
+  const ymax=0.16, y=v=>mt+ph-(v/ymax)*ph;
+  // grid + y ticks
+  for(let i=0;i<=4;i++){const gv=i*0.04; svg.appendChild(el("line",{class:"g-grid",x1:ml,x2:W-mr,y1:y(gv),y2:y(gv)}));
+    svg.appendChild(txt(gv.toFixed(2),{class:"g-tick",x:ml-8,y:y(gv)+4,"text-anchor":"end"}));}
+  const gw=pw/2, bw=52, gap=26;
+  groups.forEach((g,gi)=>{
+    const cx=ml+gw*gi+gw/2, d=DATA.view1[g[1]];
+    const bars=[["camel",d.c,cv("--camel")],["snake",d.s,cv("--snake")]];
+    const conflict = g[1]==="camel" ? "snake":"camel";
+    const totalW=bw*2+gap, x0=cx-totalW/2;
+    bars.forEach((b,bi)=>{
+      const bx=x0+bi*(bw+gap), h=(mt+ph)-y(b[1]);
+      const isC=b[0]===conflict;
+      const r=title(el("rect",{x:bx,y:y(b[1]),width:bw,height:h,rx:4,fill:b[2],
+        stroke:isC?cv("--ink"):"none","stroke-width":isC?1.5:0}),`지침 ${g[1]} · ${b[0]} 토큰 어텐션 ${b[1].toFixed(4)}`);
+      svg.appendChild(r);
+      svg.appendChild(txt(b[1].toFixed(3),{class:"g-lab",x:bx+bw/2,y:y(b[1])-7,"text-anchor":"middle"}));
+      if(isC) svg.appendChild(txt("충돌",{x:bx+bw/2,y:y(b[1])-22,"text-anchor":"middle",
+        fill:cv("--snake"),font:"600 11px ui-monospace,monospace"}));
+    });
+    svg.appendChild(txt(g[0],{class:"g-tick",x:cx,y:mt+ph+22,"text-anchor":"middle","font-weight":"600",fill:cv("--body")}));
+  });
+  svg.appendChild(el("line",{class:"g-axis",x1:ml,x2:ml,y1:mt,y2:mt+ph}));
+  svg.appendChild(el("line",{class:"g-axis",x1:ml,x2:W-mr,y1:mt+ph,y2:mt+ph}));
+  svg.appendChild(txt("어텐션 합",{class:"g-tick",x:ml,y:mt-6,"text-anchor":"start"}));
+}
+
+// ── Layer line ──
+function layer(){
+  const svg=document.getElementById("c-layer"); svg.innerHTML="";
+  const W=720,H=300,ml=54,mr=24,mt=22,mb=44, pw=W-ml-mr, ph=H-mt-mb;
+  const d=DATA.layer, N=d.length;
+  const ymin=-0.006, ymax=0.024;
+  const x=i=>ml+(i/(N-1))*pw, y=v=>mt+ph-((v-ymin)/(ymax-ymin))*ph;
+  for(let gv=0;gv<=0.02;gv+=0.01){svg.appendChild(el("line",{class:"g-grid",x1:ml,x2:W-mr,y1:y(gv),y2:y(gv)}));
+    svg.appendChild(txt(gv.toFixed(2),{class:"g-tick",x:ml-8,y:y(gv)+4,"text-anchor":"end"}));}
+  svg.appendChild(el("line",{class:"g-zero",x1:ml,x2:W-mr,y1:y(0),y2:y(0)}));
+  // area-ish line
+  let pts=d.map((v,i)=>`${x(i)},${y(v)}`).join(" ");
+  svg.appendChild(el("polyline",{points:pts,fill:"none",stroke:cv("--snake"),"stroke-width":2,"stroke-linejoin":"round"}));
+  d.forEach((v,i)=>{const peak=i===25;
+    svg.appendChild(title(el("circle",{cx:x(i),cy:y(v),r:peak?5.5:2.6,fill:peak?cv("--snake"):cv("--surface"),
+      stroke:cv("--snake"),"stroke-width":peak?2:1.4}),`L${i}: ${v>=0?"+":""}${v.toFixed(4)}`));});
+  // peak label
+  svg.appendChild(txt("L25  +0.021",{x:x(25),y:y(0.02122)-12,"text-anchor":"middle",fill:cv("--ink"),font:"600 12px ui-monospace,monospace"}));
+  // x ticks
+  for(let i=0;i<N;i+=5){svg.appendChild(txt("L"+i,{class:"g-tick",x:x(i),y:mt+ph+20,"text-anchor":"middle"}));}
+  svg.appendChild(el("line",{class:"g-axis",x1:ml,x2:ml,y1:mt,y2:mt+ph}));
+  svg.appendChild(el("line",{class:"g-axis",x1:ml,x2:W-mr,y1:mt+ph,y2:mt+ph}));
+  svg.appendChild(txt("충돌−준수",{class:"g-tick",x:ml,y:mt-8,"text-anchor":"start"}));
+}
+
+// ── View 2 multiline ──
+function view2(){
+  const svg=document.getElementById("c-view2"); svg.innerHTML="";
+  const W=720,H=300,ml=54,mr=64,mt=20,mb=46, pw=W-ml-mr, ph=H-mt-mb;
+  const d=DATA.view2, N=d.length, ymax=0.28;
+  const x=i=>ml+(i/(N-1))*pw, y=v=>mt+ph-(v/ymax)*ph;
+  for(let gv=0;gv<=0.28;gv+=0.07){svg.appendChild(el("line",{class:"g-grid",x1:ml,x2:W-mr,y1:y(gv),y2:y(gv)}));
+    svg.appendChild(txt(gv.toFixed(2),{class:"g-tick",x:ml-8,y:y(gv)+4,"text-anchor":"end"}));}
+  const series=[["sum",cv("--snake"),1,"snake 합"],["instr",cv("--instr"),1,"지침"],["per",cv("--snake"),0.5,"토큰당"]];
+  series.forEach(s=>{
+    const pts=d.map((r,i)=>`${x(i)},${y(r[s[0]])}`).join(" ");
+    const g=el("g",{opacity:s[2]});
+    g.appendChild(el("polyline",{points:pts,fill:"none",stroke:s[1],"stroke-width":2,"stroke-linejoin":"round",
+      "stroke-dasharray":s[0]==="per"?"5 4":"none"}));
+    d.forEach((r,i)=>g.appendChild(title(el("circle",{cx:x(i),cy:y(r[s[0]]),r:3,fill:s[1]}),`n=${r.n} · ${s[3]} ${r[s[0]].toFixed(4)}`)));
+    svg.appendChild(g);
+    const last=d[N-1];
+    svg.appendChild(txt(s[3],{x:x(N-1)+8,y:y(last[s[0]])+4,fill:s[1],font:"600 11px ui-monospace,monospace",opacity:Math.max(s[2],.75)}));
+  });
+  d.forEach((r,i)=>svg.appendChild(txt(r.n,{class:"g-tick",x:x(i),y:mt+ph+20,"text-anchor":"middle"})));
+  svg.appendChild(txt("← 위반 늘어남",{class:"g-tick",x:ml+pw/2,y:mt+ph+38,"text-anchor":"middle",fill:cv("--muted")}));
+  svg.appendChild(el("line",{class:"g-axis",x1:ml,x2:ml,y1:mt,y2:mt+ph}));
+  svg.appendChild(el("line",{class:"g-axis",x1:ml,x2:W-mr,y1:mt+ph,y2:mt+ph}));
+  svg.appendChild(txt("어텐션",{class:"g-tick",x:ml,y:mt-6,"text-anchor":"start"}));
+}
+
+// ── Markers grouped bars ──
+function mark(){
+  const svg=document.getElementById("c-mark"); svg.innerHTML="";
+  const W=720,H=260,ml=54,mr=20,mt=18,mb=54, pw=W-ml-mr, ph=H-mt-mb;
+  const ymax=0.15, y=v=>mt+ph-(v/ymax)*ph;
+  for(let gv=0;gv<=0.15;gv+=0.05){svg.appendChild(el("line",{class:"g-grid",x1:ml,x2:W-mr,y1:y(gv),y2:y(gv)}));
+    svg.appendChild(txt(gv.toFixed(2),{class:"g-tick",x:ml-8,y:y(gv)+4,"text-anchor":"end"}));}
+  const groups=[["snake:  _matrix vs 어근","snake",cv("--snake")],["camel:  Matrix vs 어근","camel",cv("--camel")]];
+  const gw=pw/2, bw=50, gap=26;
+  groups.forEach((g,gi)=>{
+    const cx=ml+gw*gi+gw/2, dd=DATA.mark[g[1]];
+    const bars=[[g[1]==="snake"?"밑줄":"대문자",dd.marker],["어근",dd.root]];
+    const x0=cx-(bw*2+gap)/2;
+    bars.forEach((b,bi)=>{
+      const bx=x0+bi*(bw+gap), h=(mt+ph)-y(b[1]);
+      // marker bar hatched (inconclusive), root muted solid
+      const isMark=bi===0;
+      const rect=el("rect",{x:bx,y:y(b[1]),width:bw,height:h,rx:4,fill:g[2],opacity:isMark?0.9:0.42});
+      title(rect,`${g[1]} · ${b[0]} 토큰 ‖av‖ ${b[1].toFixed(3)}`);
+      svg.appendChild(rect);
+      svg.appendChild(txt(b[1].toFixed(3),{class:"g-lab",x:bx+bw/2,y:y(b[1])-7,"text-anchor":"middle"}));
+      svg.appendChild(txt(b[0],{class:"g-tick",x:bx+bw/2,y:mt+ph+18,"text-anchor":"middle"}));
+    });
+    svg.appendChild(txt(g[0],{class:"g-tick",x:cx,y:mt+ph+40,"text-anchor":"middle","font-weight":"600",fill:cv("--body")}));
+  });
+  svg.appendChild(el("line",{class:"g-axis",x1:ml,x2:ml,y1:mt,y2:mt+ph}));
+  svg.appendChild(el("line",{class:"g-axis",x1:ml,x2:W-mr,y1:mt+ph,y2:mt+ph}));
+  svg.appendChild(txt("‖av‖ (토큰당)",{class:"g-tick",x:ml,y:mt-6,"text-anchor":"start"}));
+}
+
+function draw(){view1();layer();view2();mark();}
+draw();
+new MutationObserver(draw).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",draw);
+</script>
