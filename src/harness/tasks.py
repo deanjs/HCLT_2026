@@ -82,8 +82,10 @@ DISTINCT_TASKS: tuple[TaskSpec, ...] = (
 # 선행 함수들 사이에서 변하는 것을 오직 **이름 표기**로 한정해, 어텐션 차이가 내용이
 # 아니라 형태에서 온다는 stepB의 비교를 깨끗하게 만든다.
 
+# 주의: 생성 과제(GENERATION_TASKS: clamp/count/merge)의 단어와 겹치지 않게 한다.
+# 선행에 생성 대상과 같은 이름이 있으면 모델이 베끼는 혼입이 생긴다. (merge 제외 → expand)
 _POOL_VERBS: tuple[str, ...] = (
-    "parse", "build", "fetch", "render", "encode", "decode", "merge", "split",
+    "parse", "build", "fetch", "render", "encode", "decode", "expand", "split",
     "filter", "format", "resolve", "compute", "extract", "validate", "normalize",
     "serialize", "append", "compress", "flatten", "collect",
 )
