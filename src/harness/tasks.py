@@ -72,13 +72,64 @@ DISTINCT_TASKS: tuple[TaskSpec, ...] = (
              ("return abs(a - b)",)),
 )
 
+# ── stepB 관측용 이름 짝 풀 ────────────────────────────────────────────────
+# RQ2 관측(stepB)은 선행에 camel/snake 이름을 6/6으로 균형 배치하고, 두 표기 그룹의
+# 어텐션·‖v‖·‖av‖를 비교한다(docs/stepB/plan.md 표본 설계). seed만 늘리면 배치 순열만
+# 바뀌고 이름 정체성은 고정되므로, "서로 다른 이름"을 충분히 확보해야 효과가 특정 단어의
+# 우연이 아님이 드러난다. 그래서 두 단어(동사×명사) 조합으로 ~80개 짝 풀을 만든다.
+#
+# 본문·매개변수는 **모든 항목이 동일**하다(값을 그대로 반환). 이는 의도된 통제다 —
+# 선행 함수들 사이에서 변하는 것을 오직 **이름 표기**로 한정해, 어텐션 차이가 내용이
+# 아니라 형태에서 온다는 stepB의 비교를 깨끗하게 만든다.
+
+# 주의: 생성 과제(GENERATION_TASKS: remove/count/merge)의 단어와 겹치지 않게 한다.
+# 선행에 생성 대상과 같은 이름이 있으면 모델이 베끼는 혼입이 생긴다. (merge 제외 → expand)
+_POOL_VERBS: tuple[str, ...] = (
+    "parse", "build", "fetch", "render", "encode", "decode", "expand", "split",
+    "filter", "format", "resolve", "compute", "extract", "validate", "normalize",
+    "serialize", "append", "compress", "flatten", "collect",
+)
+_POOL_NOUNS: tuple[str, ...] = (
+    "header", "payload", "token", "buffer", "record", "node", "entry", "config",
+    "session", "request", "packet", "matrix", "vector", "index", "cursor", "stream",
+    "column", "segment", "handle", "frame",
+)
+
+
+def _build_name_pool() -> tuple[TaskSpec, ...]:
+    """동사×명사 조합으로 서로 다른 두 단어 이름 짝 80개를 결정적으로 생성한다.
+
+    verb[i]를 noun[i..i+3]과 짝지어(shift 0~3) 20×4 = 80개. 같은 (verb,noun)가
+    두 번 나오지 않는다(verb가 다르면 다르고, verb가 같으면 noun shift가 다르다).
+    본문·매개변수는 전 항목 공통(값 반환)이라 이름 표기만 변수로 남는다.
+    """
+    v, n = _POOL_VERBS, _POOL_NOUNS
+    pool = []
+    for shift in range(4):
+        for i in range(len(v)):
+            words = (v[i], n[(i + shift) % len(n)])
+            pool.append(TaskSpec(
+                words=words,
+                description=f"{v[i]}s the {n[(i + shift) % len(n)]} and returns it",
+                params=("value",),
+                body=("return value",),
+            ))
+    return tuple(pool)
+
+
+# stepB 선행 6/6 균형 배치와 관측 대상 이름을 여기서 뽑는다(Composition.POOL).
+NAME_PAIR_POOL: tuple[TaskSpec, ...] = _build_name_pool()
+
+
 # 생성용 과제 3개 — 서로 다르고 선행과도 다르다. 모델이 이름을 직접 선택한다.
+# 과제 1은 원래 clamp였으나, 모델이 한 단어 `clamp`로 축약해 표기 판정 불가("other")가
+# 됐다(stepA-1·stepA-2 결과). 그 권고대로 **두 단어가 강제되는 과제**로 교체한다.
 GENERATION_TASKS: tuple[TaskSpec, ...] = (
     TaskSpec(
-        words=("clamp", "number"),
-        description="clamps a number between a low and high bound",
-        params=("number", "low", "high"),
-        body=("return max(low, min(number, high))",),
+        words=("remove", "duplicates"),
+        description="removes duplicate items from a list, preserving order",
+        params=("items",),
+        body=("return list(dict.fromkeys(items))",),
     ),
     TaskSpec(
         words=("count", "vowels"),
