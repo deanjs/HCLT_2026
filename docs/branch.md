@@ -47,10 +47,9 @@ flowchart TD
 | `stepC/…` | RQ2 개입 (KV 치환 회복) | RQ2 |
 | `step1/layer-sweep-kv-split` | 층 스윕 + K/V 분해 | RQ2 |
 | `step2/…` | 모델 다양성 | RQ2 |
-| `step3/*` | 자기증폭 존재 — headroom 절벽 + 개수 8..5 확장 | RQ3 ①/RQ1 |
-| `step4/…` | 자기증폭 관측 — 턴 간 자기 출력 후반 층 참조 | RQ3 ② |
-| `step5/…` | 자기증폭 인과 — 자기 출력 Value 치환 회복 | RQ3 ③ |
-| `step6/…` | 자기증폭 차단형 선택적 스티어링 | 방법론 |
+| `step3/*` | 선행 개수 8..5 확장 + snake headroom (stepA 보강) | RQ1 (병렬) |
+| `step4/…` | 지침 Key/Value 분해 (2×2 지침 × 지침 토큰 치환) | RQ3 |
+| `step5/…` | Value 경로 선택적 스티어링 | 방법론 |
 
-임계 경로: `step0 → stepA → stepB → stepC → step1 → step2 → step3 → step4 → step5 → step6`
+임계 경로: `step0 → stepA → stepB → stepC → step1 → step2 → step4 → step5` (step3은 RQ1 보강·병렬)
 (stepA-1·A-2는 RQ1 대조로 병렬 완료)
