@@ -47,9 +47,9 @@ flowchart TD
 | `stepC/…` | RQ2 개입 (KV 치환 회복) | RQ2 |
 | `step1/layer-sweep-kv-split` | 층 스윕 + K/V 분해 | RQ2 |
 | `step2/…` | 모델 다양성 | RQ2 |
-| `step5/negation-2x2x2` | 부정형 지침 행동 | RQ3 |
-| `step6/…` | 부정형 지침 내부 관측 | RQ3 |
-| `step7/…` | 형태 인식 선택적 스티어링 | 방법론 |
+| `step3/*` | 선행 개수 8..5 확장 + snake headroom (stepA 보강) | RQ1 (병렬) |
+| `step4/…` | 지침 Key/Value 분해 (2×2 지침 × 지침 토큰 치환) | RQ3 |
+| `step5/…` | Value 경로 선택적 스티어링 | 방법론 |
 
-임계 경로: `step0 → stepA → stepB → stepC → step1 → step2 → step5 → step6 → step7`
+임계 경로: `step0 → stepA → stepB → stepC → step1 → step2 → step4 → step5` (step3은 RQ1 보강·병렬)
 (stepA-1·A-2는 RQ1 대조로 병렬 완료)
