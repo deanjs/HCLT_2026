@@ -28,7 +28,7 @@ pyproject.toml    src 레이아웃 패키지 정의 (pip install -e . / pytest �
 | **모델** | HF ID / 패밀리 / dtype / 양자화 |
 | 그 외 | seed, 생성 과제 순서, 자유 태그 |
 
-- 부정형 지침은 `token_notation`이 **위반 표기**를 가리킨다(RQ3 착안점: 지침 문장이 위반 신호를 담음).
+- 부정형 지침은 `token_notation`이 **위반 표기**를 가리킨다(부록 조건: 지침 문장이 위반 표기 토큰을 담는 경우).
 - 무관 코드 통제는 개입 축의 `donor`(예: `unrelated_camel`)로 표현한다.
 
 ## 측정 지표 (metrics.py)
