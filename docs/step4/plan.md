@@ -82,5 +82,17 @@ directive-token(읽힘) + step4 결과를 합치면:
 
 ---
 
+## 구현 결정 (승인됨)
+
+- **선행 2칸을 한 실행에 동시.** `preceding.n_compliant ∈ {6, 0}`을 조건 축으로 함께 태운다.
+  균형 6/6(지침 레버 틈 큼)과 전부 위반 0(지침이 눌림)을 대조해 "그 조건에서만" 반박을 미리 닫는다.
+  방향 2(camel→snake, snake→camel) × 선행 2 × seed. 코드는 stepB와 동일 POOL 이름 재사용.
+- **정렬 단위 `token_unit='last'` 기본.** `camelCase`(2토큰)/`snake_case`(≠2토큰)는 수가 달라
+  `'all'`(전체 서브토큰, 수 불일치 시 스킵)이 전부 스킵될 수 있다. `'last'`는 항상 1:1이라 지시어의
+  표기-구분 꼬리 서브토큰을 확실히 치환한다. `'all'`도 함께 돌려 `n_substituted`로 대조·기록(§4).
+- **하네스 재사용.** `Intervention.target='instruction'` 한 축만 추가. stepC/step1의 KV group 치환
+  로직을 그대로 쓰고, 치환 대상 토큰 위치만 `span_kind='literal'`로 지시어 단어를 집는다
+  (`_preference_setup_instruction`이 donor를 반대 지침으로 구성). RQ별 스크립트 분기 없음(§3).
+
 ## 연결
 directive-token(RQ3 관측) → **step4(RQ3 인과)** → 방법론 step5(Value 경로 스티어링, Spotlight 반대). qna Q2·Q6와 정합.

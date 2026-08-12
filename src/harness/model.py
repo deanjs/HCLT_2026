@@ -214,12 +214,17 @@ class ModelHandle:
         donor_messages: Optional[list[dict[str, str]]] = None,
         forced_prefix: str = "def ",
         token_unit: str = "all",
+        span_kind: str = "def_name",
     ) -> dict[str, Any]:
         """개입 측정의 공통 준비 — 캐시·후보·정렬쌍·채점 함수·기준 S(계획서 §구현).
 
         단일 층(step C)과 전 층 스윕(step 1)이 **같은 설정을 공유**한다(CLAUDE.md §3,
         로직 중복 금지). 여기서 위반/준수/공여 프롬프트를 각 한 번씩만 forward하므로,
         스윕에서 층을 바꿀 때 선행 프롬프트를 재계산하지 않는다(무료 티어 비용 절감).
+
+        span_kind: 치환 대상 토큰을 찾는 방식.
+          "def_name" = 코드 함수 이름(`def <nm>(`의 이름 부분, stepC/step1).
+          "literal"  = 문자열 nm 그대로의 첫 등장(step4 지침 지시어 "camelCase").
 
         반환 dict:
           viol_cache/comp_cache/donor_cache, viol_last, pairs, skipped,
@@ -240,16 +245,7 @@ class ModelHandle:
             return ids, text, offsets
 
         def name_positions(text, offsets, names):
-            out = []
-            for nm in names:
-                spans = find_char_spans(text, [f"def {nm}("])
-                if not spans:
-                    out.append([]); continue
-                s, e = spans[0]
-                s, e = s + 4, e - 1                      # "def " 뒤 ~ "(" 앞 = 이름
-                out.append([ti for ti, (ts, te) in enumerate(offsets)
-                            if te > ts and ts < e and te > s])
-            return out
+            return _locate_target_tokens(text, offsets, names, span_kind)
 
         def cand_ids(s):
             return tok(s, return_tensors="pt", add_special_tokens=False)["input_ids"][0].to(
@@ -346,6 +342,7 @@ class ModelHandle:
         donor_messages: Optional[list[dict[str, str]]] = None,
         forced_prefix: str = "def ",
         token_unit: str = "all",
+        span_kind: str = "def_name",
     ) -> dict[str, Any]:
         """단일 층 KV 캐시 편집으로 준수 선호도 회복을 측정한다(step C, 방법 B).
 
@@ -353,12 +350,14 @@ class ModelHandle:
         회복률 = (S_int − S_base)/(S_clean − S_base).
         kind: 'key' / 'value' / 'key_value'. 텍스트는 그대로 두고 **내부 표현만** 바꾼다.
         token_unit: 'all'(전체 토큰) / 'last'(마지막 토큰만) — 이름 토큰 정렬 단위.
+        span_kind: 'def_name'(코드 이름) / 'literal'(지침 지시어, step4).
         """
         ctx = self._preference_context(
             viol_messages, comp_messages,
             viol_names=viol_names, donor_names=donor_names,
             candidate_compliant=candidate_compliant, candidate_violation=candidate_violation,
             donor_messages=donor_messages, forced_prefix=forced_prefix, token_unit=token_unit,
+            span_kind=span_kind,
         )
         work = _clone_cache(ctx["viol_cache"])
         s_int = self._score_layer_kind(ctx, work, layer, kind)
@@ -388,6 +387,7 @@ class ModelHandle:
         donor_messages: Optional[list[dict[str, str]]] = None,
         forced_prefix: str = "def ",
         token_unit: str = "all",
+        span_kind: str = "def_name",
     ) -> dict[str, Any]:
         """전 층 × K/V 분해 스윕(step 1) — 각 층에서 세 경로의 S_int·회복률을 모두 잰다.
 
@@ -396,6 +396,7 @@ class ModelHandle:
         layers=None이면 전 층(0..num_layers-1). 산출은 층별 회복률 곡선 3개(kind별)와
         피크 층·K/V 경로별 기여도의 원자료가 된다(계획서 §5 Step 1).
         token_unit: 'all'(전체 토큰) / 'last'(마지막 토큰만) — 이름 토큰 정렬 단위.
+        span_kind: 'def_name'(코드 이름, step1) / 'literal'(지침 지시어, step4).
         """
         if layers is None:
             layers = list(range(self.num_layers))
@@ -404,6 +405,7 @@ class ModelHandle:
             viol_names=viol_names, donor_names=donor_names,
             candidate_compliant=candidate_compliant, candidate_violation=candidate_violation,
             donor_messages=donor_messages, forced_prefix=forced_prefix, token_unit=token_unit,
+            span_kind=span_kind,
         )
         s_clean, s_base = ctx["s_clean"], ctx["s_base"]
         work = _clone_cache(ctx["viol_cache"])
@@ -600,6 +602,34 @@ class ModelHandle:
             "n_substituted_tokens": len(pairs),
             "skipped_names": skipped,
         }
+
+
+def _locate_target_tokens(text, offsets, names, span_kind: str = "def_name"):
+    """치환 대상 문자열들의 토큰 인덱스 목록(이름 순)을 돌려준다.
+
+    span_kind:
+      "def_name" = `def <nm>(`에서 이름 부분만(stepC/step1 코드 이름).
+      "literal"  = 문자열 nm 그대로의 **첫 등장**(step4 지침 지시어 "camelCase").
+                   지침 문장의 지시어는 rule 문장이 closed 문장보다 앞서므로 첫 등장이
+                   실제 지시어(rule) 위치가 된다.
+    한쪽이라도 못 찾으면 그 이름은 빈 리스트 → align_name_tokens가 스킵한다.
+    """
+    out = []
+    for nm in names:
+        if span_kind == "literal":
+            spans = find_char_spans(text, [nm])
+            if not spans:
+                out.append([]); continue
+            s, e = spans[0]
+        else:
+            spans = find_char_spans(text, [f"def {nm}("])
+            if not spans:
+                out.append([]); continue
+            s, e = spans[0]
+            s, e = s + 4, e - 1                      # "def " 뒤 ~ "(" 앞 = 이름
+        out.append([ti for ti, (ts, te) in enumerate(offsets)
+                    if te > ts and ts < e and te > s])
+    return out
 
 
 def _cache_kv(cache: Any, layer: int):
