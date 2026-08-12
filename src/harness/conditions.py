@@ -146,16 +146,23 @@ class Intervention:
     layers    : 개입할 층. 정수 리스트 또는 "sweep"(전 층). NONE이면 무시.
     donor     : 치환에 쓸 공여 표현의 출처. 무관 코드 통제 조건을 여기서 표현한다
                 (예: "unrelated_camel", "unrelated_snake", "compliant").
+                target="instruction"이면 공여는 "반대 지침"(runner가 자동 구성).
     amplify   : ATTENTION_AMPLIFY에서 곱할 배율(>1 증폭, <1 반감).
+    target    : 치환 대상 토큰의 종류. "code"=선행 코드 이름(stepC/step1),
+                "instruction"=지침의 표기 지시어 단어(step4, RQ3 인과). 같은 KV 치환
+                로직을 대상 토큰만 바꿔 재사용한다(CLAUDE.md §3).
     """
     kind: InterventionKind = InterventionKind.NONE
     layers: Optional[LayerSpec] = None
     donor: Optional[str] = None
     amplify: Optional[float] = None
+    target: str = "code"          # 개입 대상: "code"(선행 이름, stepC/1) | "instruction"(지침 지시어, step4)
 
     def __post_init__(self) -> None:
+        if self.target not in ("code", "instruction"):
+            raise ValueError('intervention target은 "code" 또는 "instruction"만 허용한다')
         if self.kind is InterventionKind.NONE:
-            if self.layers or self.donor or self.amplify is not None:
+            if self.layers or self.donor or self.amplify is not None or self.target != "code":
                 raise ValueError("kind=NONE에는 개입 파라미터를 두지 않는다")
             return
         if self.layers is None:
@@ -238,6 +245,7 @@ class Condition:
                         else d["intervention"]["layers"]),
                 donor=d["intervention"]["donor"],
                 amplify=d["intervention"]["amplify"],
+                target=d["intervention"].get("target", "code"),
             ),
             seed=d["seed"],
             task_ids=tuple(d.get("task_ids", ())),
@@ -268,6 +276,8 @@ class Condition:
             intr = "int-none"
         else:
             intr = f"int-{iv.kind.value}-{_layer_tag(iv.layers)}"
+            if iv.target == "instruction":
+                intr += "-instr"          # 지침 지시어 타깃(step4) — 코드 타깃과 파일 구분
             if iv.donor:
                 intr += f"-{_slugify(iv.donor)}"
             if iv.amplify is not None:
