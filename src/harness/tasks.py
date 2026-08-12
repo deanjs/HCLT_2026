@@ -84,40 +84,78 @@ DISTINCT_TASKS: tuple[TaskSpec, ...] = (
 
 # 주의: 생성 과제(GENERATION_TASKS: remove/count/merge)의 단어와 겹치지 않게 한다.
 # 선행에 생성 대상과 같은 이름이 있으면 모델이 베끼는 혼입이 생긴다. (merge 제외 → expand)
+# 동사·명사 각 50개(50×50 어휘 확장). **앞 20개는 원래 순서 그대로** 두고 30개씩 덧붙인다.
+# → 원래 80개 이름을 새 풀의 앞부분에 그대로 보존(부분집합, 연속성). 생성 과제 단어
+# (remove/count/merge, duplicates/vowels/dicts)와 겹치지 않는다.
 _POOL_VERBS: tuple[str, ...] = (
+    # 원래 20 (순서 불변)
     "parse", "build", "fetch", "render", "encode", "decode", "expand", "split",
     "filter", "format", "resolve", "compute", "extract", "validate", "normalize",
     "serialize", "append", "compress", "flatten", "collect",
+    # 추가 30
+    "transform", "aggregate", "dispatch", "register", "allocate", "initialize",
+    "schedule", "convert", "generate", "inspect", "traverse", "partition",
+    "sanitize", "hydrate", "marshal", "deserialize", "reconcile", "prefetch",
+    "rollback", "synchronize", "throttle", "escalate", "propagate", "materialize",
+    "reindex", "rebalance", "tokenize", "annotate", "checkpoint", "bootstrap",
 )
 _POOL_NOUNS: tuple[str, ...] = (
+    # 원래 20 (순서 불변)
     "header", "payload", "token", "buffer", "record", "node", "entry", "config",
     "session", "request", "packet", "matrix", "vector", "index", "cursor", "stream",
     "column", "segment", "handle", "frame",
+    # 추가 30
+    "batch", "queue", "channel", "socket", "worker", "task", "job", "shard",
+    "replica", "cluster", "region", "bucket", "object", "blob", "chunk", "offset",
+    "cache", "ticket", "event", "signal", "snapshot", "manifest", "registry",
+    "endpoint", "adapter", "provider", "resource", "policy", "schema", "context",
 )
 
+_POOL_SIZE = 504   # 42블록 × 12 = 504 (서로 다른 이름 ≥500, 블록으로 정확히 덮임)
 
-def _build_name_pool() -> tuple[TaskSpec, ...]:
-    """동사×명사 조합으로 서로 다른 두 단어 이름 짝 80개를 결정적으로 생성한다.
 
-    verb[i]를 noun[i..i+3]과 짝지어(shift 0~3) 20×4 = 80개. 같은 (verb,noun)가
-    두 번 나오지 않는다(verb가 다르면 다르고, verb가 같으면 noun shift가 다르다).
+def _build_name_pool(size: int = _POOL_SIZE) -> tuple[TaskSpec, ...]:
+    """동사×명사 조합으로 서로 다른 두 단어 이름 짝 `size`개를 결정적으로 생성한다.
+
+    구성:
+      1) **원래 80개** — 앞 20동사 × 20명사, shift 0~3 (원래 공식·순서 그대로). 재현·연속성.
+      2) 나머지 — 50×50 공간에서 shift를 늘리며 (원래 80과) 중복 없이 `size`까지 채운다.
     본문·매개변수는 전 항목 공통(값 반환)이라 이름 표기만 변수로 남는다.
     """
     v, n = _POOL_VERBS, _POOL_NOUNS
-    pool = []
+    seen: set[tuple[str, str]] = set()
+    pool: list[TaskSpec] = []
+
+    def add(vb: str, nn: str) -> None:
+        if (vb, nn) in seen:
+            return
+        seen.add((vb, nn))
+        pool.append(TaskSpec(
+            words=(vb, nn),
+            description=f"{vb}s the {nn} and returns it",
+            params=("value",),
+            body=("return value",),
+        ))
+
+    # 1) 원래 80개 (앞 20×20, shift 0~3) — 정체성·순서 보존
     for shift in range(4):
+        for i in range(20):
+            add(v[i], n[(i + shift) % 20])
+
+    # 2) 50×50 공간에서 size까지 확장(중복 제외)
+    shift = 0
+    while len(pool) < size:
+        shift += 1
         for i in range(len(v)):
-            words = (v[i], n[(i + shift) % len(n)])
-            pool.append(TaskSpec(
-                words=words,
-                description=f"{v[i]}s the {n[(i + shift) % len(n)]} and returns it",
-                params=("value",),
-                body=("return value",),
-            ))
-    return tuple(pool)
+            if len(pool) >= size:
+                break
+            add(v[i], n[(i + shift) % len(n)])
+
+    return tuple(pool[:size])
 
 
 # stepB 선행 6/6 균형 배치와 관측 대상 이름을 여기서 뽑는다(Composition.POOL).
+# 앞 80개는 원래 풀과 동일(파일럿 이름 보존), 전체 504개(블록 커버리지용).
 NAME_PAIR_POOL: tuple[TaskSpec, ...] = _build_name_pool()
 
 
