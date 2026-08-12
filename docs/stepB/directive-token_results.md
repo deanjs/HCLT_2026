@@ -1,6 +1,6 @@
 # step B 결과 — directive-token (지침 속 "camelCase" 토큰을 보나?)
 
-**대응 RQ:** RQ2 관측 보강. "지침 어텐션 평탄"이 문장 통째 기준이라, 그 안의 지시어 토큰('camelCase')을 실제로 보는지 직접 측정.
+**대응 RQ:** RQ3 관측 (지침 쪽). RQ2가 코드 쪽이면, 이건 지침 쪽 어텐션을 stepB 방법으로 본 것 — RQ3의 관측 입구(인과는 step4). "지침 어텐션 평탄"이 문장 통째 기준이라, 그 안의 지시어 토큰('camelCase')을 실제로 보는지 직접 측정.
 
 **설정.** Qwen2.5-Coder-3B (36층, eager). **70 조건 = 7 spec × 10 block.** 기준 관측 = 지침=camel·균형 6/6(View1). per-token 어텐션 = span 어텐션 합 / span 토큰수.
 
