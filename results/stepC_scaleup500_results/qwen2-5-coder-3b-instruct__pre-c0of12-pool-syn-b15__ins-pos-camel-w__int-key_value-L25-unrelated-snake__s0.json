@@ -1,0 +1,99 @@
+{
+  "step": "stepC_scaleup500",
+  "rq": "RQ2",
+  "prediction": "compliant 치환 시 준수 선호 회복(≈A2 79%). unrelated_camel(무관 준수형)도 회복하면 신호는 내용 아닌 형태. unrelated_snake(위반형)는 회복 안 됨. 500개 위반 이름(블록)에서 효과가 특정 단어에 묶이지 않음.",
+  "created_at": "2026-08-12T09:29:37.618834+00:00",
+  "condition": {
+    "model": {
+      "name": "Qwen/Qwen2.5-Coder-3B-Instruct",
+      "family": "qwen",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 0,
+      "n_functions": 12,
+      "composition": "pool",
+      "source": "synthetic",
+      "repo_lang": null,
+      "repo_file": null,
+      "pool_block": 15
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "camel",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "key_value",
+      "layers": [
+        25
+      ],
+      "donor": "unrelated_snake",
+      "amplify": null
+    },
+    "seed": 0,
+    "task_ids": [],
+    "tag": null,
+    "token_unit": "all"
+  },
+  "metrics": {
+    "compliance_rate": null,
+    "compliance_preference": -2.9999998956918716,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {},
+    "extra": {
+      "mode": "intervene",
+      "donor": "unrelated_snake",
+      "target": "camel",
+      "S_clean": 3.578125022351742,
+      "S_base": -3.3124999068677425,
+      "S_int": -2.9999998956918716,
+      "recovery": 0.045351476010648054,
+      "layer": 25,
+      "kind": "key_value",
+      "n_substituted_tokens": 18,
+      "skipped_names": [
+        5,
+        6,
+        7
+      ],
+      "viol_names": [
+        "decode_request",
+        "validate_segment",
+        "extract_column",
+        "format_index",
+        "normalize_handle",
+        "expand_packet",
+        "split_matrix",
+        "compute_stream",
+        "filter_vector",
+        "encode_session",
+        "serialize_frame",
+        "resolve_cursor"
+      ],
+      "donor_names": [
+        "rollback_snapshot",
+        "initialize_blob",
+        "aggregate_worker",
+        "normalize_segment",
+        "normalize_batch",
+        "schedule_shard",
+        "rebalance_schema",
+        "hydrate_ticket",
+        "rollback_policy",
+        "flatten_queue",
+        "resolve_stream",
+        "checkpoint_config"
+      ]
+    }
+  },
+  "meta": {}
+}

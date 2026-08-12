@@ -1,0 +1,95 @@
+{
+  "step": "stepC_scaleup500",
+  "rq": "RQ2",
+  "prediction": "compliant 치환 시 준수 선호 회복(≈A2 79%). unrelated_camel(무관 준수형)도 회복하면 신호는 내용 아닌 형태. unrelated_snake(위반형)는 회복 안 됨. 500개 위반 이름(블록)에서 효과가 특정 단어에 묶이지 않음.",
+  "created_at": "2026-08-12T09:28:58.545400+00:00",
+  "condition": {
+    "model": {
+      "name": "Qwen/Qwen2.5-Coder-3B-Instruct",
+      "family": "qwen",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 0,
+      "n_functions": 12,
+      "composition": "pool",
+      "source": "synthetic",
+      "repo_lang": null,
+      "repo_file": null,
+      "pool_block": 33
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "camel",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "key_value",
+      "layers": [
+        25
+      ],
+      "donor": "compliant",
+      "amplify": null
+    },
+    "seed": 0,
+    "task_ids": [],
+    "tag": null,
+    "token_unit": "all"
+  },
+  "metrics": {
+    "compliance_rate": null,
+    "compliance_preference": 1.8281249552965164,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {},
+    "extra": {
+      "mode": "intervene",
+      "donor": "compliant",
+      "target": "camel",
+      "S_clean": 3.890625111758709,
+      "S_base": -1.9062500298023224,
+      "S_int": 1.8281249552965164,
+      "recovery": 0.6442048334498395,
+      "layer": 25,
+      "kind": "key_value",
+      "n_substituted_tokens": 25,
+      "skipped_names": [],
+      "viol_names": [
+        "aggregate_cluster",
+        "inspect_ticket",
+        "generate_cache",
+        "initialize_blob",
+        "traverse_event",
+        "dispatch_region",
+        "register_bucket",
+        "convert_offset",
+        "allocate_object",
+        "transform_replica",
+        "partition_signal",
+        "schedule_chunk"
+      ],
+      "donor_names": [
+        "aggregateCluster",
+        "inspectTicket",
+        "generateCache",
+        "initializeBlob",
+        "traverseEvent",
+        "dispatchRegion",
+        "registerBucket",
+        "convertOffset",
+        "allocateObject",
+        "transformReplica",
+        "partitionSignal",
+        "scheduleChunk"
+      ]
+    }
+  },
+  "meta": {}
+}

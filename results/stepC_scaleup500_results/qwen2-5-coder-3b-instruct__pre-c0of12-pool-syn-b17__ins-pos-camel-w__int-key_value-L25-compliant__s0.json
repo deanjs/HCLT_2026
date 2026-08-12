@@ -1,0 +1,95 @@
+{
+  "step": "stepC_scaleup500",
+  "rq": "RQ2",
+  "prediction": "compliant 치환 시 준수 선호 회복(≈A2 79%). unrelated_camel(무관 준수형)도 회복하면 신호는 내용 아닌 형태. unrelated_snake(위반형)는 회복 안 됨. 500개 위반 이름(블록)에서 효과가 특정 단어에 묶이지 않음.",
+  "created_at": "2026-08-12T09:28:50.772331+00:00",
+  "condition": {
+    "model": {
+      "name": "Qwen/Qwen2.5-Coder-3B-Instruct",
+      "family": "qwen",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 0,
+      "n_functions": 12,
+      "composition": "pool",
+      "source": "synthetic",
+      "repo_lang": null,
+      "repo_file": null,
+      "pool_block": 17
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "camel",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "key_value",
+      "layers": [
+        25
+      ],
+      "donor": "compliant",
+      "amplify": null
+    },
+    "seed": 0,
+    "task_ids": [],
+    "tag": null,
+    "token_unit": "all"
+  },
+  "metrics": {
+    "compliance_rate": null,
+    "compliance_preference": 1.2343749403953552,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {},
+    "extra": {
+      "mode": "intervene",
+      "donor": "compliant",
+      "target": "camel",
+      "S_clean": 3.312500014901161,
+      "S_base": -2.609375089406967,
+      "S_int": 1.2343749403953552,
+      "recovery": 0.64907651075012,
+      "layer": 25,
+      "kind": "key_value",
+      "n_substituted_tokens": 25,
+      "skipped_names": [],
+      "viol_names": [
+        "inspect_blob",
+        "prefetch_manifest",
+        "reconcile_snapshot",
+        "hydrate_ticket",
+        "rollback_registry",
+        "traverse_chunk",
+        "partition_offset",
+        "deserialize_signal",
+        "sanitize_cache",
+        "generate_object",
+        "synchronize_endpoint",
+        "marshal_event"
+      ],
+      "donor_names": [
+        "inspectBlob",
+        "prefetchManifest",
+        "reconcileSnapshot",
+        "hydrateTicket",
+        "rollbackRegistry",
+        "traverseChunk",
+        "partitionOffset",
+        "deserializeSignal",
+        "sanitizeCache",
+        "generateObject",
+        "synchronizeEndpoint",
+        "marshalEvent"
+      ]
+    }
+  },
+  "meta": {}
+}

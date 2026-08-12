@@ -1,0 +1,95 @@
+{
+  "step": "stepC_scaleup500",
+  "rq": "RQ2",
+  "prediction": "compliant 치환 시 준수 선호 회복(≈A2 79%). unrelated_camel(무관 준수형)도 회복하면 신호는 내용 아닌 형태. unrelated_snake(위반형)는 회복 안 됨. 500개 위반 이름(블록)에서 효과가 특정 단어에 묶이지 않음.",
+  "created_at": "2026-08-12T09:28:52.706404+00:00",
+  "condition": {
+    "model": {
+      "name": "Qwen/Qwen2.5-Coder-3B-Instruct",
+      "family": "qwen",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 0,
+      "n_functions": 12,
+      "composition": "pool",
+      "source": "synthetic",
+      "repo_lang": null,
+      "repo_file": null,
+      "pool_block": 21
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "camel",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "key_value",
+      "layers": [
+        25
+      ],
+      "donor": "compliant",
+      "amplify": null
+    },
+    "seed": 0,
+    "task_ids": [],
+    "tag": null,
+    "token_unit": "all"
+  },
+  "metrics": {
+    "compliance_rate": null,
+    "compliance_preference": 1.2499999701976776,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {},
+    "extra": {
+      "mode": "intervene",
+      "donor": "compliant",
+      "target": "camel",
+      "S_clean": 3.343749910593033,
+      "S_base": -2.3437498956918716,
+      "S_int": 1.2499999701976776,
+      "recovery": 0.6318681298095726,
+      "layer": 25,
+      "kind": "key_value",
+      "n_substituted_tokens": 25,
+      "skipped_names": [],
+      "viol_names": [
+        "convert_object",
+        "deserialize_snapshot",
+        "marshal_signal",
+        "partition_cache",
+        "reconcile_manifest",
+        "generate_blob",
+        "inspect_chunk",
+        "hydrate_event",
+        "traverse_offset",
+        "schedule_bucket",
+        "prefetch_registry",
+        "sanitize_ticket"
+      ],
+      "donor_names": [
+        "convertObject",
+        "deserializeSnapshot",
+        "marshalSignal",
+        "partitionCache",
+        "reconcileManifest",
+        "generateBlob",
+        "inspectChunk",
+        "hydrateEvent",
+        "traverseOffset",
+        "scheduleBucket",
+        "prefetchRegistry",
+        "sanitizeTicket"
+      ]
+    }
+  },
+  "meta": {}
+}
