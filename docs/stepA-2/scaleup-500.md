@@ -32,11 +32,11 @@
 |---|---|---|
 | 선행 `source` | `REPO` (실제 파일) | 동일 |
 | 선행 `repo_lang` | python / javascript | 동일 |
-| 선행 `repo_file` | **언어별 ~40개 실파일** | 3개 → **대량 확장** |
+| 선행 `repo_file` | **77개 실파일** (py 37 + js 40) | 6개 → **대량 확장** |
 | 지침 | camel / snake | 동일 |
 | 개입 | none | 동일 |
 
-→ **~80파일 × 2지침 = 160조건**, 조건당 생성 3함수 = **≈480 관측 ≈ 500.**
+→ **77파일 × 2지침 = 154조건**, 조건당 생성 3함수 = **462 관측 ≈ 500.**
 
 > **왜 seed로 안 늘리나:** 파일럿에서 **지침을 camel↔snake로 바꿔도 출력이 바이트까지 동일**했다(언어 관습이 지침을 완전히 압도). 즉 지침·seed는 변량을 만들지 못한다. 변량은 오직 **파일**에서 나오므로, 500은 **실파일 수를 늘려** 채운다.
 
@@ -61,10 +61,10 @@
 |---|---|
 | 데이터 종류 | **실코드(REPO)** |
 | 선행 | `data/repo_files/{python,javascript}/` 의 **실제 소스 파일** (원문 그대로, 무조작) |
-| 목표 파일 수 | python ~40 + javascript ~40 = **~80파일** (파일럿 3+3에서 확장) |
+| 파일 수 | python **37** + javascript **40** = **77파일** (파일럿 3+3에서 확장) |
 | 생성 과제 | `GENERATION_TASKS` 3종 (`remove duplicates` → `count vowels` → `merge dicts`) |
 | 지침 | camel / snake (파일당 둘 다) |
-| 총 관측 | ~80 × 2 × 3 = **≈480 ≈ 500** |
+| 총 관측 | 77 × 2 × 3 = **462 ≈ 500** |
 | 출처·라이선스 | `data/repo_files/SOURCE.md` 에 파일마다 기록 (허용 라이선스만) |
 
 ### 파일럿(현재 번들, 6파일)
@@ -74,11 +74,17 @@
 | `python/fnmatch.py`, `textwrap.py`, `string.py` | Python(snake) | CPython v3.11.0 (PSF) |
 | `javascript/utils.js`, `buildURL.js`, `formDataToJSON.js` | JavaScript(camel) | axios v1.6.0 (MIT) |
 
-### 확장 대상 (번들 예정, 허용 라이선스만)
+### 확장 번들 (완료, 허용 라이선스만)
 
-- **Python(PSF/permissive):** CPython stdlib 추가 모듈(`argparse`, `gzip`, `shutil`, `csv`, …), 또는 MIT 라이브러리.
-- **JavaScript(MIT):** axios 추가 모듈, lodash/date-fns 등 MIT 라이브러리 파일.
-- 선정 기준: **두 단어 이상 함수가 충분한 파일**(한 단어 이름은 판정 불가 `other`). 파일마다 `SOURCE.md`에 URL·커밋·라이선스 기록.
+| 출처 | 라이선스 | 태그 | 파일 수 |
+|---|---|---|---|
+| **CPython** stdlib | PSF-2.0 | `v3.11.0` | Python 37 |
+| **axios** | MIT | `v1.6.0` | JS 14 |
+| **lodash** | MIT | `4.17.21-npm` | JS 26 |
+
+- 선정 기준: **두 단어 이상 이름이 드러나는 파일**(한 단어 이름은 판정 불가 `other`). Python은 def의 snake 두 단어 ≥2, JS는 파일 내 camelCase 두 단어 식별자 ≥3.
+- 크기 필터: Python 2.5~25KB / JS 0.4~25KB (모델 컨텍스트 초과 방지, 최대 선행 ≈24.5KB).
+- 파일마다 `data/repo_files/SOURCE.md`에 URL·태그·라이선스 기록. 파일럿 6개는 재현성 위해 무조건 포함.
 
 > **파일럿의 0.67 artifact는 해소됨:** 파일럿에서 생성 1번 과제 `clamp`가 한 단어로 축약돼 판정 불가(1/3 손실)였다. 현재 하네스는 `clamp`→`remove duplicates`(두 단어 강제)로 교체돼, 이 잡음이 사라진다.
 
@@ -124,4 +130,4 @@
 파일럿의 6파일은 그대로 두고 파일만 추가하므로, 겹치는 조건(**기존 6파일 × 2지침**)은 파일럿(`results/stepA-2/`)과 **동일**하게 나온다.
 scaleup 결과는 `results/stepA-2_scaleup500/`에 저장해 파일럿과 분리·불변 보존한다(§6).
 
-> **남은 작업:** 이 문서·노트북은 파이프라인을 확정한다. 실제 **~80 실파일 번들 + `SOURCE.md` 기록**은 별도 데이터 작업으로 이어서 수행한다(출처 저장소·라이선스 확인 후). 노트북은 `data/repo_files/`를 **자동 glob**하므로, 파일을 채우면 그만큼 자동 확장된다.
+> **실파일 번들 완료:** 77파일(CPython v3.11.0 · axios v1.6.0 · lodash 4.17.21-npm)을 `data/repo_files/`에 번들하고 `SOURCE.md`에 출처·라이선스를 기록했다. 노트북은 `data/repo_files/`를 **자동 glob**하므로 파일 수만큼 조건이 잡힌다(현재 77파일 → 154조건).
