@@ -50,6 +50,27 @@ def build_instruction_text(condition: Condition) -> str:
     return f"You are helping extend an existing {lang} module.\n" + rule + "\n" + closed
 
 
+def _pool_indices(condition: Condition) -> list[int]:
+    """POOL 선행이 쓸 이름 풀 인덱스 n_functions개(블록 커버리지).
+
+    풀을 n_functions개씩 나눠 블록 인덱스로 고른다: 블록 b → [b*n, (b+1)*n).
+    여러 블록으로 풀 전체(504개)를 **중복 없이** 덮는다(§3 500 커버리지).
+    seed는 수량이 아니라 블록 내 **순서(위치·이웃)** 를 섞어 문맥 강건성 변주를 준다.
+    (build_preceding_code·preceding_specs·unrelated_specs가 이 하나를 공유해 어긋나지 않는다.)
+    """
+    p = condition.preceding
+    n = p.n_functions
+    start = p.pool_block * n
+    if start + n > len(NAME_PAIR_POOL):
+        raise ValueError(
+            f"pool_block({p.pool_block})가 이름 풀 범위를 넘는다: "
+            f"[{start}, {start + n}) > 풀 {len(NAME_PAIR_POOL)}"
+        )
+    idxs = list(range(start, start + n))
+    random.Random(condition.seed).shuffle(idxs)   # 위치·이웃 변주
+    return idxs
+
+
 def build_preceding_code(condition: Condition) -> str:
     """선행 코드. 합성이면 12개 블록(clone/distinct), 실코드면 번들 파일 원문."""
     p = condition.preceding
@@ -70,12 +91,8 @@ def build_preceding_code(condition: Condition) -> str:
                 f"distinct 과제 풀({len(DISTINCT_TASKS)})이 n_functions({p.n_functions})보다 작다"
             )
         funcs = [DISTINCT_TASKS[i].render(nt) for i, nt in enumerate(notations)]
-    else:  # POOL — stepB 균형 관측: 이름 짝 풀(~80)에서 seed로 서로 다른 n개를 뽑는다.
-        if p.n_functions > len(NAME_PAIR_POOL):
-            raise ValueError(
-                f"이름 풀({len(NAME_PAIR_POOL)})이 n_functions({p.n_functions})보다 작다"
-            )
-        idxs = random.Random(condition.seed).sample(range(len(NAME_PAIR_POOL)), p.n_functions)
+    else:  # POOL — stepB 균형 관측: 이름 풀을 블록으로 덮는다(전체 504). seed는 표기·위치 변주.
+        idxs = _pool_indices(condition)
         funcs = [NAME_PAIR_POOL[j].render(nt) for j, nt in zip(idxs, notations)]
     return "\n\n".join(funcs)
 
@@ -114,7 +131,7 @@ def preceding_specs(condition: Condition) -> list[tuple[TaskSpec, Notation]]:
     notations = [target] * p.n_compliant + [violation] * (p.n_functions - p.n_compliant)
     random.Random(condition.seed).shuffle(notations)
     if p.composition is Composition.POOL:
-        idxs = random.Random(condition.seed).sample(range(len(NAME_PAIR_POOL)), p.n_functions)
+        idxs = _pool_indices(condition)
         specs = [NAME_PAIR_POOL[j] for j in idxs]
     elif p.composition is Composition.DISTINCT:
         specs = [DISTINCT_TASKS[i] for i in range(p.n_functions)]
@@ -143,8 +160,7 @@ def unrelated_specs(condition: Condition, n: int) -> list[TaskSpec]:
     """조건의 선행에 쓰이지 않은 풀 이름 n개(무관 코드 통제용). POOL 전용."""
     if condition.preceding.composition is not Composition.POOL:
         raise ValueError("unrelated_specs는 POOL 선행에만 쓴다")
-    used = set(random.Random(condition.seed).sample(
-        range(len(NAME_PAIR_POOL)), condition.preceding.n_functions))
+    used = set(_pool_indices(condition))
     avail = [j for j in range(len(NAME_PAIR_POOL)) if j not in used]
     if n > len(avail):
         raise ValueError(f"무관 이름 부족: 요청 {n}, 가용 {len(avail)}")

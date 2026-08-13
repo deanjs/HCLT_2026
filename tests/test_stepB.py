@@ -1,7 +1,8 @@
 """step B(RQ2 관측) 단위 테스트 — 모델 없이 이름 짝 풀·균형 배치 검증.
 
 관측 경로(measure_attention)의 모델 내부 훅은 GPU가 필요하므로 여기서 다루지 않고,
-표본 설계(docs/stepB/plan.md)의 전제 — 80짝 풀의 건전성과 6/6 균형 배치 — 만 검증한다.
+표본 설계(docs/stepB/plan.md)의 전제 — 504짝 풀(원래 80 보존)의 건전성과 6/6 균형 배치,
+블록 기반 이름 커버리지 — 만 검증한다.
 """
 
 import re
@@ -26,10 +27,11 @@ from harness.conditions import (
 MODEL = ModelSpec(name="Qwen/Qwen2.5-Coder-3B-Instruct", family="qwen")
 
 
-def _cond(target=Notation.CAMEL, seed=0):
+def _cond(target=Notation.CAMEL, seed=0, block=0):
     return Condition(
         model=MODEL,
-        preceding=PrecedingCode(n_compliant=6, n_functions=12, composition=Composition.POOL),
+        preceding=PrecedingCode(n_compliant=6, n_functions=12, composition=Composition.POOL,
+                                pool_block=block),
         instruction=Instruction(form=InstructionForm.POSITIVE, target_notation=target),
         seed=seed,
     )
@@ -38,7 +40,7 @@ def _cond(target=Notation.CAMEL, seed=0):
 # ── 이름 짝 풀 건전성 ──────────────────────────────────────────────────────
 
 def test_pool_size_and_uniqueness():
-    assert len(NAME_PAIR_POOL) >= 80                       # 예비 80쌍 규모
+    assert len(NAME_PAIR_POOL) >= 500                      # 50x50 확장(504), 원래 80 보존
     bases = [t.words for t in NAME_PAIR_POOL]
     assert len(set(bases)) == len(bases)                   # 전부 고유 짝
 
@@ -79,11 +81,20 @@ def test_balanced_placement_is_6_6_regardless_of_instruction():
             assert len(set(defs)) == 12                     # 12개 모두 서로 다른 이름
 
 
-def test_seeds_draw_different_names():
-    # seed마다 다른 이름 집합이어야 효과가 특정 단어에 묶이지 않는다.
-    n0, _ = _counts(build_preceding_code(_cond(Notation.CAMEL, 0)))
-    n5, _ = _counts(build_preceding_code(_cond(Notation.CAMEL, 5)))
-    assert set(n0) != set(n5)
+def test_blocks_draw_different_names():
+    # 다양성은 seed가 아니라 블록에서 나온다: 다른 블록 → 다른 이름 집합(§3 500 커버리지).
+    n0, _ = _counts(build_preceding_code(_cond(Notation.CAMEL, seed=0, block=0)))
+    n1, _ = _counts(build_preceding_code(_cond(Notation.CAMEL, seed=0, block=1)))
+    assert set(n0).isdisjoint(set(n1))            # 블록끼리 이름 겹치지 않음
+
+
+def test_same_block_seeds_same_names_diff_arrangement():
+    # 같은 블록: seed가 바뀌어도 이름 집합은 같고(블록이 결정), 배치(위치·표기)만 변주된다.
+    a = build_preceding_code(_cond(Notation.CAMEL, seed=0, block=2))
+    b = build_preceding_code(_cond(Notation.CAMEL, seed=5, block=2))
+    na, _ = _counts(a); nb, _ = _counts(b)
+    assert set(na) == set(nb)                     # 같은 이름 집합
+    assert a != b                                 # 배치는 다름(위치·표기 변주)
 
 
 def test_placement_is_deterministic_per_seed():

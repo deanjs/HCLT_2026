@@ -73,6 +73,9 @@ class PrecedingCode:
 
     n_compliant : 규약(camelCase)을 지킨 함수 개수. 계획서는 0~4를 배정한다.
     n_functions : 선행 코드 함수 총 개수(기본 12).
+    pool_block  : POOL 전용. 이름 풀을 n_functions개씩 나눈 블록 인덱스. 블록 b는
+                  풀의 [b*n_functions, (b+1)*n_functions) 이름을 덮는다(seed는 표기·위치 변주).
+                  → 여러 블록으로 풀 전체(504개)를 중복 없이 커버. POOL이 아니면 무시(0).
     """
     n_compliant: int
     n_functions: int = 12
@@ -80,10 +83,13 @@ class PrecedingCode:
     source: Source = Source.SYNTHETIC
     repo_lang: Optional[str] = None  # source=REPO일 때 언어(python/javascript)
     repo_file: Optional[str] = None  # source=REPO일 때 data/repo_files/ 하위 상대경로
+    pool_block: int = 0              # POOL 전용 이름 블록 인덱스(§3 500 커버리지)
 
     def __post_init__(self) -> None:
         if self.n_functions <= 0:
             raise ValueError("n_functions는 양수여야 한다")
+        if self.pool_block < 0:
+            raise ValueError("pool_block은 0 이상이어야 한다")
         if not (0 <= self.n_compliant <= self.n_functions):
             raise ValueError(
                 f"n_compliant는 0..{self.n_functions} 범위여야 한다 (받음: {self.n_compliant})"
@@ -253,6 +259,8 @@ class Condition:
             pre = f"pre-repo-{_slugify(p.repo_lang)}-{_slugify(stem)}"
         else:
             pre = f"pre-c{p.n_compliant}of{p.n_functions}-{p.composition.value}-syn"
+            if p.composition is Composition.POOL:
+                pre += f"-b{p.pool_block}"   # 블록별 결과 파일 분리(§6)
         ins = (f"ins-{self.instruction.form.value[:3]}-"
                f"{self.instruction.target_notation.value}-{self.instruction.strength.value[:1]}")
         iv = self.intervention
