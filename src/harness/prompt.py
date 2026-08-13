@@ -15,6 +15,15 @@ from .tasks import CLONE_TASK, DISTINCT_TASKS, GENERATION_TASKS, NAME_PAIR_POOL,
 
 _STYLE = {Notation.CAMEL: "camelCase", Notation.SNAKE: "snake_case"}
 
+
+def notation_word(notation: Notation) -> str:
+    """지침 문장에 등장하는 표기 지시어 단어('camelCase'/'snake_case').
+
+    step4(지침 지시어 KV 치환)가 치환 대상 문자열을 지목할 때 쓴다. 지침 조립과
+    지시어 문자열을 한 곳에서 관리해 중복을 막는다(CLAUDE.md §3).
+    """
+    return _STYLE[notation]
+
 # 번들 실파일 위치: <repo_root>/data/repo_files/ (src/harness/prompt.py → parents[2])
 _REPO_FILES_DIR = Path(__file__).resolve().parents[2] / "data" / "repo_files"
 _LANG_LABEL = {"python": "Python", "javascript": "JavaScript", "js": "JavaScript"}
