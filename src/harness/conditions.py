@@ -208,15 +208,18 @@ class Condition:
     seed: int = 0
     task_ids: tuple[str, ...] = ()  # 생성시킬 함수 과제 식별자(순서 = 생성 순서)
     tag: Optional[str] = None       # 자유 라벨 (예: "holdout", "pilot")
-    # 이름 토큰 정렬 단위(개입 치환·v 코사인 공통):
-    #   "all"  = 이름 전체 토큰(step1, Qwen처럼 camel/snake 2:2일 때)
-    #   "last" = 이름 마지막 토큰만(step2 옵션 B; 토크나이저가 밑줄을 다르게 쪼개
-    #            all이 전부 스킵될 때. 항상 1:1이라 정렬 실패가 없다)
+    # 이름/지시어 토큰 정렬 단위(개입 치환·v 코사인 공통):
+    #   "all"  = 전체 토큰 1:1(step1, camel/snake 2:2일 때). 개수 다르면 스킵.
+    #   "last" = 마지막 토큰만 1:1(step2 옵션 B; 밑줄을 다르게 쪼개 all이 전부
+    #            스킵될 때. 항상 1:1이라 정렬 실패가 없지만 신호가 약할 수 있다)
+    #   "mean" = mean-pool(step4 모델다양성). 공여 토큰들을 평균 내 위반 이름의
+    #            **모든 토큰 자리**에 넣는다. 개수 불일치를 허용하면서(스킵 없음)
+    #            단어 전체를 덮어 last보다 신호가 강하다. v 코사인엔 쓰지 않는다.
     token_unit: str = "all"
 
     def __post_init__(self) -> None:
-        if self.token_unit not in ("all", "last"):
-            raise ValueError('token_unit은 "all" 또는 "last"만 허용한다')
+        if self.token_unit not in ("all", "last", "mean"):
+            raise ValueError('token_unit은 "all"·"last"·"mean"만 허용한다')
 
     # ── 직렬화 ────────────────────────────────────────────────────────────
 

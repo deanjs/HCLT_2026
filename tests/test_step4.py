@@ -123,3 +123,30 @@ def test_def_name_span_unchanged_by_new_param():
     off = [(0, 3), (4, 9), (9, 15), (15, 16)]
     got = _locate_target_tokens(text, off, ["parseHeader"])  # default def_name
     assert got == [[1, 2]]
+
+
+# ── mean-pool 정렬(개수 불일치 허용) ───────────────────────────────────────
+
+def test_mean_token_unit_allowed():
+    c = _cond()
+    assert Condition.from_dict(
+        c.to_dict() | {"token_unit": "mean"}
+    ) is not None or True   # 검증만 통과하면 됨
+    # 직접 생성도 통과해야 한다
+    from dataclasses import replace
+    assert replace(c, token_unit="mean").token_unit == "mean"
+
+
+def test_align_name_groups_handles_unequal_counts():
+    from harness.intervention import align_name_groups
+    # 위반 2토큰 vs 공여 3토큰 — all이면 스킵될 상황. mean은 그대로 묶는다.
+    groups, skipped = align_name_groups([[5, 6]], [[10, 11, 12]])
+    assert skipped == []
+    assert groups == [([5, 6], [10, 11, 12])]   # 위반 전 자리 + 공여 전 자리
+
+
+def test_align_name_groups_skips_empty_side():
+    from harness.intervention import align_name_groups
+    groups, skipped = align_name_groups([[], [3]], [[7], [8, 9]])
+    assert skipped == [0]                         # 위반 위치 비면 제외
+    assert groups == [([3], [8, 9])]

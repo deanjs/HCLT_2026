@@ -12,7 +12,7 @@ from typing import Any, Optional, Sequence
 
 from .conditions import ModelSpec
 from .attention_probe import cosine, find_char_spans, locate_token_spans, span_metrics
-from .intervention import align_name_tokens, preference_score, recovery_rate
+from .intervention import align_name_groups, align_name_tokens, preference_score, recovery_rate
 
 
 @dataclass
@@ -269,11 +269,17 @@ class ModelHandle:
             with torch.no_grad():
                 donor_cache = self.model(d_ids[:, :-1], use_cache=True).past_key_values
 
-        pairs, skipped = align_name_tokens(
-            name_positions(viol_text, viol_off, viol_names),
-            name_positions(donor_text, donor_off, donor_names),
-            mode=token_unit,
-        )
+        vpos = name_positions(viol_text, viol_off, viol_names)
+        dpos = name_positions(donor_text, donor_off, donor_names)
+        if token_unit == "mean":
+            # mean-pool: 공여 토큰 평균을 위반 이름 전 자리에 브로드캐스트(개수 불일치 허용).
+            groups, skipped = align_name_groups(vpos, dpos)
+            pairs = None
+            n_sub = sum(len(vp) for vp, _ in groups)   # 덮어쓴 위반 토큰 자리 수
+        else:
+            pairs, skipped = align_name_tokens(vpos, dpos, mode=token_unit)
+            groups = None
+            n_sub = len(pairs)
 
         def logp_candidate(cache, last_tok, cand):
             # [마지막 프롬프트 토큰 + cand[:-1]]을 캐시로 forward → 후보 토큰 logP 합.
@@ -295,6 +301,8 @@ class ModelHandle:
             "donor_cache": donor_cache,
             "viol_last": viol_last,
             "pairs": pairs,
+            "groups": groups,
+            "n_substituted": n_sub,
             "skipped": skipped,
             "S": S,
             "s_base": S(viol_cache, viol_last),
@@ -308,12 +316,37 @@ class ModelHandle:
         층·kind마다 편집→측정→복구로 재사용하므로 층당 깊은 복사가 필요 없다.
         S 내부에서 다시 복제해 forward하므로 work_cache는 측정 중에도 오염되지 않고,
         측정 후 백업으로 되돌려 다음 층이 깨끗한 위반 상태에서 시작한다.
+
+        token_unit="mean"이면 pairs 대신 groups로 mean-pool 치환한다: 공여 위치들의 KV를
+        평균 내(한 벡터) 위반 이름의 모든 위치에 브로드캐스트(개수 불일치 허용, 스킵 없음).
         """
-        pairs = ctx["pairs"]
         ek, ev = _cache_kv(work_cache, layer)
         dk, dv = _cache_kv(ctx["donor_cache"], layer)
         edit_k = kind in ("key", "key_value")
         edit_v = kind in ("value", "key_value")
+
+        if ctx.get("groups") is not None:                     # ── mean-pool 경로 ──
+            bk: dict[int, Any] = {}
+            bv: dict[int, Any] = {}
+            for vps, dps in ctx["groups"]:
+                if edit_k:
+                    km = dk[:, :, dps, :].mean(dim=2)          # [B, n_kv, d] 공여 평균
+                    for vp in vps:
+                        bk[vp] = ek[:, :, vp, :].clone()
+                        ek[:, :, vp, :] = km
+                if edit_v:
+                    vm = dv[:, :, dps, :].mean(dim=2)
+                    for vp in vps:
+                        bv[vp] = ev[:, :, vp, :].clone()
+                        ev[:, :, vp, :] = vm
+            s_int = ctx["S"](work_cache, ctx["viol_last"])
+            for vp, b in bk.items():
+                ek[:, :, vp, :] = b
+            for vp, b in bv.items():
+                ev[:, :, vp, :] = b
+            return s_int
+
+        pairs = ctx["pairs"]                                  # ── 1:1 pairs 경로 ──
         bk = {vp: ek[:, :, vp, :].clone() for vp, _ in pairs} if edit_k else {}
         bv = {vp: ev[:, :, vp, :].clone() for vp, _ in pairs} if edit_v else {}
         for vp, dp in pairs:
@@ -369,7 +402,7 @@ class ModelHandle:
             "recovery": recovery_rate(s_clean, s_base, s_int),
             "layer": layer,
             "kind": kind,
-            "n_substituted_tokens": len(ctx["pairs"]),
+            "n_substituted_tokens": ctx["n_substituted"],
             "skipped_names": ctx["skipped"],
         }
 
@@ -425,7 +458,7 @@ class ModelHandle:
             "per_layer": per_layer,
             "layers": list(layers),
             "kinds": list(kinds),
-            "n_substituted_tokens": len(ctx["pairs"]),
+            "n_substituted_tokens": ctx["n_substituted"],
             "skipped_names": ctx["skipped"],
         }
 
