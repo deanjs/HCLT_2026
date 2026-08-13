@@ -21,6 +21,7 @@ import re
 
 from .naming import classify_name, first_function_name
 from .prompt import (
+    _STYLE,
     build_instruction_text,
     build_preceding_code,
     first_user_message,
@@ -402,8 +403,17 @@ def _run_observation(condition: Condition, handle: Optional[ModelHandle]) -> Run
         {"role": "user", "content": first_user_message(condition)},
     ]
 
+    # 지침 안의 표기 지시어 토큰을 통째 지침과 별도로 관측한다("camelCase 써라"의 그 단어).
+    # target = 지침이 요구하는 표기(지시어), viol = 반대 표기.
+    ins = condition.instruction
+    notation_spans = {
+        "instr_target_word": _STYLE[ins.target_notation],
+        "instr_viol_word": _STYLE[ins.violation_notation],
+    }
+
     obs = handle.observe_generation_query(
-        messages, groups=groups, instruction_text=instruction_text
+        messages, groups=groups, instruction_text=instruction_text,
+        notation_spans=notation_spans,
     )
 
     # per_layer를 Metrics 스키마에 담는다. 구간·지표를 평평한 키로 편다.

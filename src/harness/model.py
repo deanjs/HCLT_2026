@@ -101,6 +101,7 @@ class ModelHandle:
         *,
         groups: dict[str, list[str]],
         instruction_text: Optional[str] = None,
+        notation_spans: Optional[dict[str, str]] = None,
         forced_prefix: str = "def ",
     ) -> dict[str, Any]:
         """이름을 생성하는 디코딩 시점의 query 한 행을 구간별로 관측한다(stepB).
@@ -156,6 +157,11 @@ class ModelHandle:
             char_spans[gname] = ranges
         if instruction_text:
             char_spans["instruction"] = find_char_spans(prompt_text, [instruction_text])
+        # 지침 안의 '표기 지시어 토큰'(camelCase/snake_case)을 통째 지침과 별도로 잡는다.
+        # 이 단어는 지침 문장에만 등장하므로 코드/과제와 혼입되지 않는다(고유).
+        if notation_spans:
+            for span_name, needle in notation_spans.items():
+                char_spans[span_name] = find_char_spans(prompt_text, [needle])
         spans = locate_token_spans(offsets, char_spans)
 
         # 3) forward — 어텐션·KV value 확보
