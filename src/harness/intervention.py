@@ -55,6 +55,35 @@ def align_name_tokens(
     return pairs, skipped
 
 
+def align_name_groups(
+    viol_names_tokens: Sequence[Sequence[int]],
+    donor_names_tokens: Sequence[Sequence[int]],
+) -> tuple[list[tuple[list[int], list[int]]], list[int]]:
+    """mean-pool 치환용 — 이름별 (위반 위치들, 공여 위치들) 묶음을 돌려준다.
+
+    align_name_tokens(1:1 짝짓기)와 달리 **개수 불일치를 허용**한다. 치환 시 공여 토큰들의
+    KV를 평균 내(한 벡터) 위반 이름의 **모든 토큰 자리**에 브로드캐스트해 넣는다
+    (model._score_layer_kind의 mean 경로). last(1개)보다 단어 전체를 덮어 신호가 강하고,
+    all과 달리 토큰 수가 달라도 스킵되지 않는다(step4 모델 다양성).
+
+    반환:
+      groups  : [(위반_위치들, 공여_위치들), ...] — 이름 순, 한쪽이라도 비면 제외.
+      skipped : 한쪽 위치가 비어(이름 못 찾음) 제외된 이름 인덱스.
+    """
+    if len(viol_names_tokens) != len(donor_names_tokens):
+        raise ValueError(
+            f"이름 개수 불일치: 위반 {len(viol_names_tokens)} vs 공여 {len(donor_names_tokens)}"
+        )
+    groups: list[tuple[list[int], list[int]]] = []
+    skipped: list[int] = []
+    for i, (vt, dt) in enumerate(zip(viol_names_tokens, donor_names_tokens)):
+        if not vt or not dt:
+            skipped.append(i)
+            continue
+        groups.append(([int(x) for x in vt], [int(x) for x in dt]))
+    return groups, skipped
+
+
 def recovery_rate(
     s_clean: float, s_base: float, s_int: float, eps: float = 1e-9
 ) -> Optional[float]:

@@ -11,7 +11,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Callable, Optional
 
 from .conditions import Condition, InterventionKind, Notation
@@ -26,6 +26,7 @@ from .prompt import (
     build_preceding_code,
     first_user_message,
     next_user_message,
+    notation_word,
     preceding_specs,
     render_preceding,
     unrelated_specs,
@@ -116,7 +117,9 @@ def _run_intervention(condition: Condition, handle: Optional[ModelHandle]) -> Ru
         # 전 층 × K/V 분해 스윕(step 1). 단일 층(step C)과 설정을 공유한다.
         return _run_intervention_sweep(condition, handle)
     layer = list(iv.layers)[0]
-    setup = _preference_setup(condition)
+    instr_target = iv.target == "instruction"
+    setup = _preference_setup_instruction(condition) if instr_target else _preference_setup(condition)
+    span_kind = "literal" if instr_target else "def_name"
 
     out = handle.intervene_preference(
         setup["viol_messages"], setup["comp_messages"],
@@ -124,13 +127,14 @@ def _run_intervention(condition: Condition, handle: Optional[ModelHandle]) -> Ru
         candidate_compliant=setup["candidate_compliant"],
         candidate_violation=setup["candidate_violation"],
         layer=layer, kind=iv.kind.value, donor_messages=setup["donor_messages"],
-        token_unit=condition.token_unit,
+        token_unit=condition.token_unit, span_kind=span_kind,
     )
 
     metrics = Metrics(
         compliance_preference=out["S_int"],
         extra={
             "mode": "intervene",
+            "intervention_target": iv.target,
             "donor": setup["donor_kind"],
             "target": setup["target"].value,
             "S_clean": out["S_clean"],
@@ -199,17 +203,69 @@ def _preference_setup(condition: Condition) -> dict:
     }
 
 
+def _preference_setup_instruction(condition: Condition) -> dict:
+    """step4 개입 입력 — 치환 대상이 **지침 지시어 토큰**, 공여가 **반대 지침**(RQ3 인과).
+
+    stepC(_preference_setup)와 같은 반사실 KV 치환 구조를 쓰되(CLAUDE.md §3), 딱 두 곳만
+    바꾼다:
+      - 치환 대상: 선행 코드 이름 → 지침의 표기 지시어 단어("camelCase"/"snake_case").
+      - donor: 같은 이름 준수판 → **선행은 그대로 두고 지침만 반대 표기로** 렌더한 프롬프트.
+
+    S = logP(target 이름) − logP(violation 이름). 세 상태:
+      - base(viol_messages) : 조건 지침 그대로            → S_base
+      - opp (comp_messages) : 반대 지침 그대로(천장 기준) → S_clean
+      - int                 : base 텍스트인데 지시어 KV만 반대 지침값으로 치환
+    전이율 = (S_int − S_base)/(S_clean − S_base) = recovery_rate(S_clean, S_base, S_int).
+    """
+    target = condition.instruction.target_notation
+    violation = condition.instruction.violation_notation
+
+    # 선행은 두 프롬프트가 공유(같은 seed·블록·구성). 지침만 목표 표기를 뒤집는다.
+    opp_instruction = replace(condition.instruction, target_notation=violation)
+    opp_condition = replace(condition, instruction=opp_instruction)
+
+    preceding_text = build_preceding_code(condition)
+    base_system = build_instruction_text(condition)       # 조건 지침 (예: camel)
+    opp_system = build_instruction_text(opp_condition)     # 반대 지침 (예: snake)
+
+    def msgs(system):
+        return [{"role": "system", "content": system},
+                {"role": "user", "content": user_message_with_preceding(condition, preceding_text)}]
+
+    # 치환 대상 = 각 지침 rule 문장의 지시어 단어(literal 첫 등장).
+    viol_names = [notation_word(condition.instruction.token_notation)]  # "camelCase"
+    donor_names = [notation_word(opp_instruction.token_notation)]       # "snake_case"
+
+    gt = GENERATION_TASKS[0]
+    cand_compliant, cand_violation = gt.name(target), gt.name(violation)
+
+    return {
+        "viol_messages": msgs(base_system),   # base = 조건 지침
+        "comp_messages": msgs(opp_system),    # 천장 기준 = 반대 지침 (donor로도 재사용)
+        "viol_names": viol_names,
+        "donor_names": donor_names,
+        "candidate_compliant": cand_compliant,
+        "candidate_violation": cand_violation,
+        "donor_messages": None,               # donor_cache = comp_cache(반대 지침)
+        "donor_kind": "opposite_instruction",
+        "target": target,
+    }
+
+
 def _run_intervention_sweep(condition: Condition, handle: Optional[ModelHandle]) -> RunOutput:
     """전 층 × K/V 분해 스윕(step 1) — 각 층에서 key/value/key_value 3경로의 S_int·회복률.
 
     산출: 층별 회복률 곡선 3개(kind별) × donor, 피크 층, K/V 경로별 기여도. 관측 측
     코사인 궤적(mode='vcosine')과 층을 맞춰 보면 축 B(Value 방향) 성립을 교차검증한다.
     per_layer에는 kind·지표를 평평한 키("key__recovery" 등)로 담는다(observe와 동일 관습).
+    개입 타깃이 'instruction'이면 코드 이름 대신 지침 지시어 토큰을 치환한다(step4).
     """
     if handle is None:
         raise ValueError("개입에는 handle이 필요하다 (모델 내부 접근)")
 
-    setup = _preference_setup(condition)
+    instr_target = condition.intervention.target == "instruction"
+    setup = _preference_setup_instruction(condition) if instr_target else _preference_setup(condition)
+    span_kind = "literal" if instr_target else "def_name"
     out = handle.intervene_preference_sweep(
         setup["viol_messages"], setup["comp_messages"],
         viol_names=setup["viol_names"], donor_names=setup["donor_names"],
@@ -217,7 +273,7 @@ def _run_intervention_sweep(condition: Condition, handle: Optional[ModelHandle])
         candidate_violation=setup["candidate_violation"],
         layers=None, kinds=("key", "value", "key_value"),
         donor_messages=setup["donor_messages"],
-        token_unit=condition.token_unit,
+        token_unit=condition.token_unit, span_kind=span_kind,
     )
 
     per_layer: dict[int, dict[str, float]] = {}
@@ -234,6 +290,7 @@ def _run_intervention_sweep(condition: Condition, handle: Optional[ModelHandle])
         per_layer=per_layer,
         extra={
             "mode": "intervene_sweep",
+            "intervention_target": condition.intervention.target,
             "donor": setup["donor_kind"],
             "target": setup["target"].value,
             "S_clean": out["S_clean"],

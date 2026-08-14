@@ -1,0 +1,267 @@
+{
+  "step": "step4_modeldiv_mean",
+  "rq": "RQ3",
+  "prediction": "예측(불확실): mean-pool은 whole-word급이라 Qwen은 Value 크게(~0.9급) 기대. stable은 gap 있으니 이제 Value/Key 구분 보일 것. deepseek/granite는 gap≈0이면 지침 레버 없음. 예상과 달라도 조건 바꿔 맞추지 않고 그대로 기록(CLAUDE.md §4).",
+  "created_at": "2026-08-13T15:29:49.079936+00:00",
+  "condition": {
+    "model": {
+      "name": "deepseek-ai/deepseek-coder-1.3b-instruct",
+      "family": "deepseek",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 0,
+      "n_functions": 12,
+      "composition": "pool",
+      "source": "synthetic",
+      "repo_lang": null,
+      "repo_file": null,
+      "pool_block": 7
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "snake",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "key_value",
+      "layers": "sweep",
+      "donor": null,
+      "amplify": null,
+      "target": "instruction"
+    },
+    "seed": 0,
+    "task_ids": [],
+    "tag": null,
+    "token_unit": "mean"
+  },
+  "metrics": {
+    "compliance_rate": null,
+    "compliance_preference": null,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {
+      "0": {
+        "key__S_int": -2.505121063259139,
+        "key__recovery": 9.956407210511817e-05,
+        "value__S_int": -2.5051081237979815,
+        "value__recovery": 7.37048222845007e-05,
+        "key_value__S_int": -2.5051138449271093,
+        "key_value__recovery": 8.513838242805245e-05
+      },
+      "1": {
+        "key__S_int": -2.505134594910487,
+        "key__recovery": 0.0001266068019705066,
+        "value__S_int": -2.5051084068618366,
+        "value__recovery": 7.427051963874286e-05,
+        "key_value__S_int": -2.5051080343764625,
+        "key_value__recovery": 7.352611519824642e-05
+      },
+      "2": {
+        "key__S_int": -2.5051056650918326,
+        "key__recovery": 6.879114807772967e-05,
+        "value__S_int": -2.50510173181101,
+        "value__recovery": 6.093056639100456e-05,
+        "key_value__S_int": -2.5051017691366724,
+        "key_value__recovery": 6.100516096809849e-05
+      },
+      "3": {
+        "key__S_int": -2.505112585844472,
+        "key__recovery": 8.262213139835003e-05,
+        "value__S_int": -2.505125577452418,
+        "value__recovery": 0.00010858559551410048,
+        "key_value__S_int": -2.5100380063886405,
+        "key_value__recovery": 0.00992597486234889
+      },
+      "4": {
+        "key__S_int": -2.5050708409107756,
+        "key__recovery": -8.042691332636295e-07,
+        "value__S_int": -2.505130199890118,
+        "value__recovery": 0.00011782344319665518,
+        "key_value__S_int": -2.5051055387884844,
+        "key_value__recovery": 6.853873340642878e-05
+      },
+      "5": {
+        "key__S_int": -2.5051122434451827,
+        "key__recovery": 8.193785338597901e-05,
+        "value__S_int": -2.5099672544092755,
+        "value__recovery": 0.009784578471308267,
+        "key_value__S_int": -2.505152364487003,
+        "key_value__recovery": 0.0001621189390475564
+      },
+      "6": {
+        "key__S_int": -2.5050738207501126,
+        "key__recovery": 5.150879145588433e-06,
+        "value__S_int": -2.5053693279842264,
+        "value__recovery": 0.0005957160732939742,
+        "key_value__S_int": -2.5099884402225143,
+        "key_value__recovery": 0.00982691788795948
+      },
+      "7": {
+        "key__S_int": -2.5051078629039694,
+        "key__recovery": 7.318343091006461e-05,
+        "value__S_int": -2.4426113269946654,
+        "value__recovery": -0.12482487185213477,
+        "key_value__S_int": -2.505107393335493,
+        "key_value__recovery": 7.224500786485778e-05
+      },
+      "8": {
+        "key__S_int": -2.5051232046607765,
+        "key__recovery": 0.0001038436197023246,
+        "value__S_int": -2.4475528055845643,
+        "value__recovery": -0.11494942744355444,
+        "key_value__S_int": -2.5050938109561685,
+        "key_value__recovery": 4.510089917071713e-05
+      },
+      "9": {
+        "key__S_int": -2.505111706770549,
+        "key__recovery": 8.086532005138869e-05,
+        "value__S_int": -2.50998265909584,
+        "value__recovery": 0.009815364423940154,
+        "key_value__S_int": -2.442641254798218,
+        "key_value__recovery": -0.12476506174573063
+      },
+      "10": {
+        "key__S_int": -2.5051077736643492,
+        "key__recovery": 7.300508734514121e-05,
+        "value__S_int": -2.5051064253711957,
+        "value__recovery": 7.031055091392831e-05,
+        "key_value__S_int": -2.5051110960630467,
+        "key_value__recovery": 7.964483353513546e-05
+      },
+      "11": {
+        "key__S_int": -2.7551249555690447,
+        "key__recovery": 0.4997272555654902,
+        "value__S_int": -2.8804365052637877,
+        "value__recovery": 0.7501598376863822,
+        "key_value__S_int": -2.942665225986275,
+        "key_value__recovery": 0.8745226697683008
+      },
+      "12": {
+        "key__S_int": -2.4426183367104386,
+        "key__recovery": -0.12481086307780165,
+        "value__S_int": -2.4426168097634218,
+        "value__recovery": -0.1248139146503432,
+        "key_value__S_int": -2.4426053894203505,
+        "key_value__recovery": -0.12483673797358036
+      },
+      "13": {
+        "key__S_int": -2.505127588774485,
+        "key__recovery": 0.00011260518173717722,
+        "value__S_int": -2.5051135165049345,
+        "value__recovery": 8.448203739474527e-05,
+        "key_value__S_int": -2.5051190815793234,
+        "key_value__recovery": 9.560372531811952e-05
+      },
+      "14": {
+        "key__S_int": -2.438000230344187,
+        "key__recovery": -0.13404005467767088,
+        "value__S_int": -2.4426088166001136,
+        "value__recovery": -0.12482988882456293,
+        "key_value__S_int": -2.5051059484976577,
+        "key_value__recovery": 6.935752885207386e-05
+      },
+      "15": {
+        "key__S_int": -2.505128348588187,
+        "key__recovery": 0.00011412365395876886,
+        "value__S_int": -2.442611088255944,
+        "value__recovery": -0.12482534896661111,
+        "key_value__S_int": -2.5051169661819586,
+        "key_value__recovery": 9.137614673037385e-05
+      },
+      "16": {
+        "key__S_int": -2.5100337388794287,
+        "key__recovery": 0.009917446332027978,
+        "value__S_int": -2.5051194689658587,
+        "value__recovery": 9.63779094260406e-05,
+        "key_value__S_int": -2.5100361896693357,
+        "key_value__recovery": 0.00992234418578643
+      },
+      "17": {
+        "key__S_int": -2.510027541000454,
+        "key__recovery": 0.009905059997017076,
+        "value__S_int": -2.5051190890662838,
+        "value__recovery": 9.561868785609801e-05,
+        "key_value__S_int": -2.5051143887030776,
+        "key_value__recovery": 8.622510763539983e-05
+      },
+      "18": {
+        "key__S_int": -2.505119051806105,
+        "key__recovery": 9.55442241466832e-05,
+        "value__S_int": -2.5051114983143634,
+        "value__recovery": 8.044872460621498e-05,
+        "key_value__S_int": -2.505113300496305,
+        "key_value__recovery": 8.405034854391396e-05
+      },
+      "19": {
+        "key__S_int": -2.5051259126048535,
+        "key__recovery": 0.00010925539083664974,
+        "value__S_int": -2.5050805397404474,
+        "value__recovery": 1.8578644606010988e-05,
+        "key_value__S_int": -2.5099856835367973,
+        "key_value__recovery": 0.009821408707649335
+      },
+      "20": {
+        "key__S_int": -2.5051142545053153,
+        "key__recovery": 8.59569161383393e-05,
+        "value__S_int": -2.505108228091558,
+        "value__recovery": 7.391325087476666e-05,
+        "key_value__S_int": -2.505111297192343,
+        "key_value__recovery": 8.004678634110184e-05
+      },
+      "21": {
+        "key__S_int": -2.5051138890194125,
+        "key__recovery": 8.522649999865465e-05,
+        "value__S_int": -2.5051031472030445,
+        "value__recovery": 6.375919857074772e-05,
+        "key_value__S_int": -2.5051155354376533,
+        "key_value__recovery": 8.85168333503055e-05
+      },
+      "22": {
+        "key__S_int": -2.509992961444368,
+        "key__recovery": 0.009835953457832686,
+        "value__S_int": -2.5099842156632803,
+        "value__recovery": 0.00981847519229521,
+        "key_value__S_int": -2.509992641666031,
+        "key_value__recovery": 0.009835314387333021
+      },
+      "23": {
+        "key__S_int": -2.5051168916761526,
+        "key__recovery": 9.122724839325068e-05,
+        "value__S_int": -2.5051085335217067,
+        "value__recovery": 7.452364681185224e-05,
+        "key_value__S_int": -2.505110827500175,
+        "key_value__recovery": 7.910811610139002e-05
+      }
+    },
+    "extra": {
+      "mode": "intervene_sweep",
+      "intervention_target": "instruction",
+      "donor": "opposite_instruction",
+      "target": "snake",
+      "S_clean": -3.005451619712403,
+      "S_base": -2.505071243351267,
+      "kinds": [
+        "key",
+        "value",
+        "key_value"
+      ],
+      "n_substituted_tokens": 4,
+      "skipped_names": [],
+      "viol_names": [
+        "snake_case"
+      ],
+      "donor_names": [
+        "camelCase"
+      ]
+    }
+  },
+  "meta": {}
+}
