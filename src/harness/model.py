@@ -101,7 +101,7 @@ class ModelHandle:
         *,
         groups: dict[str, list[str]],
         instruction_text: Optional[str] = None,
-        notation_spans: Optional[dict[str, str]] = None,
+        notation_spans: Optional[dict[str, Any]] = None,
         forced_prefix: str = "def ",
     ) -> dict[str, Any]:
         """이름을 생성하는 디코딩 시점의 query 한 행을 구간별로 관측한다(stepB).
@@ -158,10 +158,22 @@ class ModelHandle:
         if instruction_text:
             char_spans["instruction"] = find_char_spans(prompt_text, [instruction_text])
         # 지침 안의 '표기 지시어 토큰'(camelCase/snake_case)을 통째 지침과 별도로 잡는다.
-        # 이 단어는 지침 문장에만 등장하므로 코드/과제와 혼입되지 않는다(고유).
+        # 값 두 종류를 허용한다:
+        #   · str            : 프롬프트 전체에서 그 단어의 모든 등장을 찾는다(초판, 규칙문+후보열거 합침).
+        #   · [(a,b), ...]   : **지침 문장 내부 offset**. 지침이 프롬프트에 박힌 시작점을 더해 재기준
+        #                      (규칙문/후보열거 분리 — instruction_notation_spans). 지침을 못 찾으면 빈 구간.
         if notation_spans:
-            for span_name, needle in notation_spans.items():
-                char_spans[span_name] = find_char_spans(prompt_text, [needle])
+            inst_char = char_spans.get("instruction") or (
+                find_char_spans(prompt_text, [instruction_text]) if instruction_text else []
+            )
+            inst_start = inst_char[0][0] if inst_char else None
+            for span_name, spec in notation_spans.items():
+                if isinstance(spec, str):
+                    char_spans[span_name] = find_char_spans(prompt_text, [spec])
+                elif inst_start is None:
+                    char_spans[span_name] = []
+                else:
+                    char_spans[span_name] = [(inst_start + a, inst_start + b) for a, b in spec]
         spans = locate_token_spans(offsets, char_spans)
 
         # 3) forward — 어텐션·KV value 확보

@@ -25,6 +25,7 @@ from .prompt import (
     build_instruction_text,
     build_preceding_code,
     first_user_message,
+    instruction_notation_spans,
     next_user_message,
     notation_word,
     preceding_specs,
@@ -461,12 +462,14 @@ def _run_observation(condition: Condition, handle: Optional[ModelHandle]) -> Run
     ]
 
     # 지침 안의 표기 지시어 토큰을 통째 지침과 별도로 관측한다("camelCase 써라"의 그 단어).
-    # target = 지침이 요구하는 표기(지시어), viol = 반대 표기.
+    # target/viol = 초판 방식(규칙문+후보열거 합침, 요구어는 2회 등장해 부풀려짐 → 참고용).
+    # instr_rule_word / instr_cand_* = 규칙문(진짜 지시)과 후보열거(대칭 나열)를 분리한 공정 비교용.
     ins = condition.instruction
-    notation_spans = {
+    notation_spans: dict[str, object] = {
         "instr_target_word": _STYLE[ins.target_notation],
         "instr_viol_word": _STYLE[ins.violation_notation],
     }
+    notation_spans.update(instruction_notation_spans(condition))
 
     obs = handle.observe_generation_query(
         messages, groups=groups, instruction_text=instruction_text,

@@ -59,6 +59,55 @@ def build_instruction_text(condition: Condition) -> str:
     return f"You are helping extend an existing {lang} module.\n" + rule + "\n" + closed
 
 
+# 후보열거 문장의 고정 앵커(build_instruction_text의 closed 문장). 이 앞=규칙문, 뒤=후보열거.
+_CANDIDATE_ANCHOR = "one of two styles only:"
+
+
+def instruction_notation_spans(condition: Condition) -> dict[str, list[tuple[int, int]]]:
+    """지침 문장 안 표기어(camelCase/snake_case)를 **역할별로 분리**해 위치를 돌려준다.
+
+    지침은 표기어를 두 곳에서 언급한다:
+      · 규칙문   : "...write function names in camelCase." — 실제 지시(요구/금지) **1개**
+      · 후보열거 : "...one of two styles only: camelCase or snake_case." — 대칭 나열(**둘 다 1개씩**)
+
+    그래서 요구 표기어는 규칙문+후보열거로 **2회**, 반대 표기어는 후보열거로 **1회** 나온다.
+    그냥 합쳐 재면(step4 초판) 요구어가 "많이 나와서" 부풀려져 불공정하다. 이 함수가 규칙문
+    지시어와 후보열거를 나눠, 공정한 비교(규칙문 지시어 vs 코드이름, 후보 camel vs snake)를 가능케 한다.
+
+    반환(키 → 문자 구간 목록, **지침 문장 내부 offset 기준**. model.py가 프롬프트 전체 기준으로 재기준):
+      instr_rule_word  : 규칙문의 지시어(요구 또는 금지 표기어) — "지침을 보는가"의 핵심 신호
+      instr_cand_camel : 후보열거의 camelCase
+      instr_cand_snake : 후보열거의 snake_case
+    """
+    text = build_instruction_text(condition)
+    camel, snake = _STYLE[Notation.CAMEL], _STYLE[Notation.SNAKE]
+    ci = text.find(_CANDIDATE_ANCHOR)   # 후보열거 시작(그 앞은 규칙문). 못 찾으면 -1.
+
+    def occ(word: str) -> list[tuple[int, int]]:
+        out: list[tuple[int, int]] = []
+        s = 0
+        while True:
+            i = text.find(word, s)
+            if i < 0:
+                break
+            out.append((i, i + len(word)))
+            s = i + len(word)
+        return out
+
+    rule_word: list[tuple[int, int]] = []
+    cand_camel: list[tuple[int, int]] = []
+    cand_snake: list[tuple[int, int]] = []
+    for a, b in occ(camel):
+        (cand_camel if ci >= 0 and a >= ci else rule_word).append((a, b))
+    for a, b in occ(snake):
+        (cand_snake if ci >= 0 and a >= ci else rule_word).append((a, b))
+    return {
+        "instr_rule_word": rule_word,
+        "instr_cand_camel": cand_camel,
+        "instr_cand_snake": cand_snake,
+    }
+
+
 def _pool_indices(condition: Condition) -> list[int]:
     """POOL 선행이 쓸 이름 풀 인덱스 n_functions개(블록 커버리지).
 

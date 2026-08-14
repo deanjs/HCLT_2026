@@ -150,3 +150,35 @@ def test_align_name_groups_skips_empty_side():
     groups, skipped = align_name_groups([[], [3]], [[7], [8, 9]])
     assert skipped == [0]                         # 위반 위치 비면 제외
     assert groups == [([3], [8, 9])]
+
+
+# ── 규칙문/후보열거 표기어 분리 (instr_rule_word vs instr_cand_*) ──────────────
+
+def test_instruction_notation_spans_splits_rule_and_candidates():
+    """요구 표기어는 규칙문+후보열거로 2회 등장한다. 분리 헬퍼가 이를 갈라놓는가.
+
+    규칙문 지시어(진짜 지시) 1개 + 후보열거 camel/snake 각 1개로 나뉘어야
+    빈도 부풀림 없이 공정 비교가 된다(step4 결과 비교 B안)."""
+    from harness.prompt import build_instruction_text, instruction_notation_spans
+
+    for target, rule_word in [(Notation.CAMEL, "camelCase"), (Notation.SNAKE, "snake_case")]:
+        c = Condition(
+            model=MODEL,
+            preceding=PrecedingCode(n_compliant=6, n_functions=12,
+                                    composition=Composition.POOL, pool_block=0),
+            instruction=Instruction(form=InstructionForm.POSITIVE, target_notation=target),
+            seed=42,
+        )
+        txt = build_instruction_text(c)
+        sp = instruction_notation_spans(c)
+        # 규칙문 지시어는 정확히 1개, 그 단어는 요구 표기어
+        assert len(sp["instr_rule_word"]) == 1
+        a, b = sp["instr_rule_word"][0]
+        assert txt[a:b] == rule_word
+        # 규칙문 지시어는 후보열거 앵커보다 앞에 있다
+        assert a < txt.index("one of two styles only:")
+        # 후보열거는 camel/snake 각 1개, 앵커 뒤
+        assert len(sp["instr_cand_camel"]) == 1 and len(sp["instr_cand_snake"]) == 1
+        assert txt[slice(*sp["instr_cand_camel"][0])] == "camelCase"
+        assert txt[slice(*sp["instr_cand_snake"][0])] == "snake_case"
+        assert sp["instr_cand_camel"][0][0] > txt.index("one of two styles only:")
