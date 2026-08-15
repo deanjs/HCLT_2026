@@ -1,0 +1,69 @@
+{
+  "step": "step1_cliff",
+  "rq": "RQ1",
+  "prediction": null,
+  "created_at": "2026-08-15T22:32:45.469955+00:00",
+  "condition": {
+    "model": {
+      "name": "Qwen/Qwen2.5-Coder-3B-Instruct",
+      "family": "qwen",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 5,
+      "n_functions": 12,
+      "composition": "pool",
+      "source": "synthetic",
+      "repo_lang": null,
+      "repo_file": null,
+      "pool_block": 35,
+      "lang": null
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "snake",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "none",
+      "layers": null,
+      "donor": null,
+      "amplify": null,
+      "target": "code"
+    },
+    "seed": 42,
+    "task_ids": [],
+    "tag": null,
+    "token_unit": "all"
+  },
+  "metrics": {
+    "compliance_rate": 1.0,
+    "compliance_preference": null,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {},
+    "extra": {
+      "turn_notations": [
+        "snake"
+      ],
+      "turn_names": [
+        "remove_duplicates_preserve_order"
+      ],
+      "turn_texts": [
+        "To add a function that removes duplicate items from a list while preserving the order, you can use a set to track seen items and then filter the list based on these seen items. Here's how you can implement this:\n\n```python\ndef remove_duplicates_preserve_order(input_list):\n    seen = set()\n    result = []\n    for item in input_list:\n        if item not in seen:\n            seen.add(item)\n            result.append(item)\n    return result\n```\n\nThis function iterates over"
+      ],
+      "target": "snake",
+      "first_compliant": true,
+      "first_violated": false,
+      "subsequent_violation_rate": null
+    }
+  },
+  "meta": {}
+}
