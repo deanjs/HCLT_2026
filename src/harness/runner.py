@@ -22,6 +22,7 @@ import re
 from .naming import classify_name, first_function_name
 from .prompt import (
     _STYLE,
+    _lang,
     build_instruction_text,
     build_preceding_code,
     first_user_message,
@@ -75,6 +76,7 @@ def run(
     mode: str = "generate",
     generate_fn: Optional[GenerateFn] = None,
     max_new_tokens: int = 256,
+    max_turns: Optional[int] = None,
 ) -> RunOutput:
     """조건 하나를 실행한다.
 
@@ -100,7 +102,7 @@ def run(
     if condition.intervention.kind is not InterventionKind.NONE:
         # 개입 경로(step C): KV 치환으로 준수 선호도 회복 측정
         return _run_intervention(condition, handle)
-    return _run_generation(condition, handle, generate_fn, max_new_tokens)
+    return _run_generation(condition, handle, generate_fn, max_new_tokens, max_turns)
 
 
 def _run_intervention(condition: Condition, handle: Optional[ModelHandle]) -> RunOutput:
@@ -507,8 +509,13 @@ def _run_generation(
     handle: Optional[ModelHandle],
     generate_fn: Optional[GenerateFn],
     max_new_tokens: int,
+    max_turns: Optional[int] = None,
 ) -> RunOutput:
-    """생성 경로 — 선행 12 + 생성 3을 순차 생성하고 표기를 측정한다(step A)."""
+    """생성 경로 — 선행 12 + 순차 생성을 하고 표기를 측정한다(step A / step1).
+
+    max_turns: 생성 턴 수 상한. None=과제 전부(자기증폭까지). step1 절벽은 1턴이면
+    충분(첫 함수 준수율만)해 GPU를 아낀다. 첫 턴은 언제나 준수율(절벽)의 근거다.
+    """
     if generate_fn is None:
         if handle is None:
             raise ValueError("생성에는 handle 또는 generate_fn 중 하나가 필요하다")
@@ -517,8 +524,8 @@ def _run_generation(
         )
 
     # system(지침) + 순차 3턴. 모델의 이전 답이 히스토리에 쌓여 자기증폭이 누적된다.
-    # 코드 언어(합성=python, 실코드=repo_lang) → 이름 추출기 선택
-    lang = condition.preceding.repo_lang or "python"
+    # 코드 언어(합성=preceding.lang, 실코드=repo_lang) → 이름 추출기 선택
+    lang = _lang(condition)
 
     messages: list[dict[str, str]] = [
         {"role": "system", "content": build_instruction_text(condition)}
@@ -526,7 +533,8 @@ def _run_generation(
     notations: list[str] = []
     names: list[Optional[str]] = []
     texts: list[str] = []
-    for turn in range(len(GENERATION_TASKS)):
+    n_turns = len(GENERATION_TASKS) if max_turns is None else min(max_turns, len(GENERATION_TASKS))
+    for turn in range(n_turns):
         user = first_user_message(condition) if turn == 0 else next_user_message(turn)
         messages.append({"role": "user", "content": user})
         text = generate_fn(messages)

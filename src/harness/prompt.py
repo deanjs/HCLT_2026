@@ -30,9 +30,14 @@ _LANG_LABEL = {"python": "Python", "javascript": "JavaScript", "js": "JavaScript
 
 
 def _lang(condition: Condition) -> str:
-    """이 조건의 코드 언어. 합성은 python, 실코드는 repo_lang."""
+    """이 조건의 코드 언어. 실코드는 repo_lang, 합성은 preceding.lang(없으면 python).
+
+    step1 언어 다양성(파이썬+JS)에서 합성 코드도 언어를 가질 수 있다(§3).
+    """
     p = condition.preceding
-    return p.repo_lang if p.source is Source.REPO else "python"
+    if p.source is Source.REPO:
+        return p.repo_lang
+    return p.lang or "python"
 
 
 def _load_repo_file(repo_file: str) -> str:
@@ -89,20 +94,21 @@ def build_preceding_code(condition: Condition) -> str:
     violation = condition.instruction.violation_notation
     notations = [target] * p.n_compliant + [violation] * (p.n_functions - p.n_compliant)
     random.Random(condition.seed).shuffle(notations)
+    lang = _lang(condition)   # 합성 코드 렌더 언어(python/javascript) — step1 언어 다양성
 
     if p.composition is Composition.CLONE:
         # 같은 과제를 인덱스만 바꿔 12복제. 표기는 notations[i].
-        funcs = [CLONE_TASK.render(nt, idx=i + 1) for i, nt in enumerate(notations)]
+        funcs = [CLONE_TASK.render(nt, idx=i + 1, lang=lang) for i, nt in enumerate(notations)]
     elif p.composition is Composition.DISTINCT:
         # 서로 다른 과제 12개(고정 풀 앞에서부터). 표기는 notations[i], 인덱스 없음.
         if p.n_functions > len(DISTINCT_TASKS):
             raise ValueError(
                 f"distinct 과제 풀({len(DISTINCT_TASKS)})이 n_functions({p.n_functions})보다 작다"
             )
-        funcs = [DISTINCT_TASKS[i].render(nt) for i, nt in enumerate(notations)]
+        funcs = [DISTINCT_TASKS[i].render(nt, lang=lang) for i, nt in enumerate(notations)]
     else:  # POOL — stepB 균형 관측: 이름 풀을 블록으로 덮는다(전체 504). seed는 표기·위치 변주.
         idxs = _pool_indices(condition)
-        funcs = [NAME_PAIR_POOL[j].render(nt) for j, nt in zip(idxs, notations)]
+        funcs = [NAME_PAIR_POOL[j].render(nt, lang=lang) for j, nt in zip(idxs, notations)]
     return "\n\n".join(funcs)
 
 
