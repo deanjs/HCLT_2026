@@ -58,7 +58,8 @@ class InterventionKind(str, Enum):
     KEY = "key"                       # 선행 코드 Key만 치환 (축 A 경로)
     VALUE = "value"                   # 선행 코드 Value만 치환 (축 B 경로)
     KEY_VALUE = "key_value"           # Key+Value 동시 치환 (현재 확보 결과)
-    ATTENTION_AMPLIFY = "attn_amplify"  # 지침 구간 어텐션 증폭/반감
+    ATTENTION_AMPLIFY = "attn_amplify"  # 지침 구간 어텐션 증폭 (step6 Spotlight 재구현)
+    VALUE_ADD = "value_add"           # 잔차에 조향 방향 더하기 (step6 값 조향, CAA식)
 
 
 # 층 지정: 정수 층 리스트, 또는 전 층 스윕을 뜻하는 "sweep"
@@ -157,12 +158,17 @@ class Intervention:
     donor: Optional[str] = None
     amplify: Optional[float] = None
     target: str = "code"          # 개입 대상: "code"(선행 이름, stepC/1) | "instruction"(지침 지시어, step4)
+    # step6 값 조향(VALUE_ADD) 전용:
+    strength: Optional[float] = None      # 조향 세기 (잔차에 더할 방향 벡터 배율)
+    steer_source: Optional[str] = None    # 조향 방향 출처: "code_contrast"(step3 camel−snake)
 
     def __post_init__(self) -> None:
         if self.target not in ("code", "instruction"):
             raise ValueError('intervention target은 "code" 또는 "instruction"만 허용한다')
         if self.kind is InterventionKind.NONE:
-            if self.layers or self.donor or self.amplify is not None or self.target != "code":
+            if (self.layers or self.donor or self.amplify is not None
+                    or self.target != "code" or self.strength is not None
+                    or self.steer_source is not None):
                 raise ValueError("kind=NONE에는 개입 파라미터를 두지 않는다")
             return
         if self.layers is None:
@@ -171,9 +177,16 @@ class Intervention:
             raise ValueError('layers 문자열은 "sweep"만 허용한다')
         if self.kind is InterventionKind.ATTENTION_AMPLIFY:
             if self.amplify is None:
-                raise ValueError("ATTENTION_AMPLIFY에는 amplify 배율이 필요하다")
+                raise ValueError("ATTENTION_AMPLIFY에는 amplify(목표 비중 ψ_target)가 필요하다")
         elif self.amplify is not None:
-            raise ValueError("치환 계열 개입에는 amplify를 두지 않는다")
+            raise ValueError("치환/조향 계열 개입에는 amplify를 두지 않는다")
+        if self.kind is InterventionKind.VALUE_ADD:
+            if self.strength is None:
+                raise ValueError("VALUE_ADD에는 strength(조향 세기)가 필요하다")
+            if self.steer_source is None:
+                raise ValueError("VALUE_ADD에는 steer_source가 필요하다")
+        elif self.strength is not None or self.steer_source is not None:
+            raise ValueError("VALUE_ADD 외에는 strength/steer_source를 두지 않는다")
 
     @property
     def is_sweep(self) -> bool:
@@ -249,6 +262,8 @@ class Condition:
                 donor=d["intervention"]["donor"],
                 amplify=d["intervention"]["amplify"],
                 target=d["intervention"].get("target", "code"),
+                strength=d["intervention"].get("strength"),
+                steer_source=d["intervention"].get("steer_source"),
             ),
             seed=d["seed"],
             task_ids=tuple(d.get("task_ids", ())),
@@ -285,6 +300,8 @@ class Condition:
                 intr += f"-{_slugify(iv.donor)}"
             if iv.amplify is not None:
                 intr += f"-x{iv.amplify:g}".replace(".", "p")
+            if iv.strength is not None:
+                intr += f"-str{iv.strength:g}".replace(".", "p")
         parts = [m, pre, ins, intr]
         if self.token_unit != "all":          # all은 생략(기존 슬러그 불변), last만 표기
             parts.append(f"tok-{self.token_unit}")

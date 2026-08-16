@@ -93,9 +93,12 @@ def run(
     if mode == "vcosine":
         # 관측 측(step 1): 같은 이름 camel/snake v의 층별 코사인 궤적
         return _run_cosine_sweep(condition, handle)
+    if mode == "steer":
+        # 처방(step 6): 값 조향(CAA) / Spotlight 어텐션 조향으로 준수 회복 측정
+        return _run_steer(condition, handle)
     if mode != "generate":
         raise ValueError(
-            f"알 수 없는 mode: {mode!r} (generate|observe|intervene_generate|vcosine)"
+            f"알 수 없는 mode: {mode!r} (generate|observe|intervene_generate|vcosine|steer)"
         )
     if condition.intervention.kind is not InterventionKind.NONE:
         # 개입 경로(step C): KV 치환으로 준수 선호도 회복 측정
@@ -147,6 +150,83 @@ def _run_intervention(condition: Condition, handle: Optional[ModelHandle]) -> Ru
             "skipped_names": out["skipped_names"],
             "viol_names": setup["viol_names"],
             "donor_names": setup["donor_names"],
+        },
+    )
+    return RunOutput(condition=condition, metrics=metrics)
+
+
+# 조향 방향 캐시 — 모델·층·출처별로 한 번만 뽑는다(모델 실행당 재사용).
+_STEER_VEC: dict = {}
+
+
+def _steer_samples(condition: Condition, n_blocks: int = 8) -> list:
+    """조향 방향 추출용 표본 — 여러 묶음의 선행을 all-camel / all-snake로 렌더한 프롬프트쌍."""
+    from dataclasses import replace
+    system = build_instruction_text(condition)
+    samples = []
+    for b in range(n_blocks):
+        c_b = replace(condition, preceding=replace(condition.preceding, pool_block=b))
+        specs = preceding_specs(c_b)
+        cam_text = render_preceding([(s, Notation.CAMEL) for s, _ in specs])
+        sna_text = render_preceding([(s, Notation.SNAKE) for s, _ in specs])
+        samples.append({
+            "camel_messages": [{"role": "system", "content": system},
+                               {"role": "user", "content": user_message_with_preceding(c_b, cam_text)}],
+            "snake_messages": [{"role": "system", "content": system},
+                               {"role": "user", "content": user_message_with_preceding(c_b, sna_text)}],
+            "camel_names": [s.name(Notation.CAMEL) for s, _ in specs],
+            "snake_names": [s.name(Notation.SNAKE) for s, _ in specs],
+        })
+    return samples
+
+
+def _run_steer(condition: Condition, handle: Optional[ModelHandle]) -> RunOutput:
+    """처방 경로(step 6) — 값 조향(CAA) / Spotlight 어텐션 조향으로 준수 회복 측정.
+
+    출발점은 절벽 조건(camel 지침 + snake 오염 선행). 교사강제 camel 선호점수의
+    회복률 = (S_int − S_base)/(S_clean − S_base). NONE이면 개입 없음(회복 0, 하한선).
+    """
+    if handle is None:
+        raise ValueError("처방(step6)에는 handle이 필요하다 (모델 내부 접근)")
+    from . import steer as steer_mod
+
+    iv = condition.intervention
+    setup = _preference_setup(condition)      # 코드 타깃(절벽) — viol/comp/후보 재사용
+
+    if iv.kind is InterventionKind.NONE:
+        res = steer_mod.steer_preference(handle, setup["viol_messages"], setup["comp_messages"],
+                                         setup["candidate_compliant"], setup["candidate_violation"],
+                                         kind="none")
+    elif iv.kind is InterventionKind.VALUE_ADD:
+        layer = list(iv.layers)[0]
+        key = (condition.model.name, layer, iv.steer_source)
+        if key not in _STEER_VEC:
+            _STEER_VEC[key] = steer_mod.build_steer_vector(handle, _steer_samples(condition), layer)
+        res = steer_mod.steer_preference(handle, setup["viol_messages"], setup["comp_messages"],
+                                         setup["candidate_compliant"], setup["candidate_violation"],
+                                         kind="value_add", layer=layer, strength=iv.strength,
+                                         steer_vec=_STEER_VEC[key])
+    elif iv.kind is InterventionKind.ATTENTION_AMPLIFY:
+        word = notation_word(condition.instruction.target_notation)
+        res = steer_mod.steer_preference(handle, setup["viol_messages"], setup["comp_messages"],
+                                         setup["candidate_compliant"], setup["candidate_violation"],
+                                         kind="spotlight", psi_target=iv.amplify, span_names=[word])
+    else:
+        raise ValueError(f"step6가 지원하지 않는 개입: {iv.kind.value}")
+
+    metrics = Metrics(
+        compliance_preference=res["S_int"],
+        extra={
+            "mode": "steer",
+            "method": iv.kind.value,
+            "tag": condition.tag,
+            "recovery": res["recovery"],
+            "S_clean": res["S_clean"],
+            "S_base": res["S_base"],
+            "S_int": res["S_int"],
+            "layer": res.get("layer"),
+            "attn_span_after": res.get("attn_span_after"),
+            "n_span_tokens": res.get("n_span_tokens"),
         },
     )
     return RunOutput(condition=condition, metrics=metrics)
