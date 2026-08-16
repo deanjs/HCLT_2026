@@ -25,7 +25,7 @@ NEUTRAL_INSTRUCTION_WORD = "project"
 def notation_word(notation: Notation) -> str:
     """지침 문장에 등장하는 표기 지시어 단어('camelCase'/'snake_case').
 
-    step4(지침 지시어 KV 치환)가 치환 대상 문자열을 지목할 때 쓴다. 지침 조립과
+    step5(지침 지시어 KV 치환)가 치환 대상 문자열을 지목할 때 쓴다. 지침 조립과
     지시어 문자열을 한 곳에서 관리해 중복을 막는다(CLAUDE.md §3).
     """
     return _STYLE[notation]

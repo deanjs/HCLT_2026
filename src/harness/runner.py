@@ -469,7 +469,7 @@ def _preference_setup(condition: Condition) -> dict:
 
 
 def _preference_setup_instruction(condition: Condition) -> dict:
-    """step4 개입 입력 — 치환 대상이 **지침 지시어 토큰**, 공여가 **반대 지침**(RQ3 인과).
+    """step5 개입 입력 — 치환 대상이 **지침 지시어 토큰**, 공여가 **반대 지침**(RQ3 인과).
 
     stepC(_preference_setup)와 같은 반사실 KV 치환 구조를 쓰되(CLAUDE.md §3), 딱 두 곳만
     바꾼다:
@@ -548,7 +548,7 @@ def _run_intervention_sweep(condition: Condition, handle: Optional[ModelHandle])
     산출: 층별 회복률 곡선 3개(kind별) × donor, 피크 층, K/V 경로별 기여도. 관측 측
     코사인 궤적(mode='vcosine')과 층을 맞춰 보면 축 B(Value 방향) 성립을 교차검증한다.
     per_layer에는 kind·지표를 평평한 키("key__recovery" 등)로 담는다(observe와 동일 관습).
-    개입 타깃이 'instruction'이면 코드 이름 대신 지침 지시어 토큰을 치환한다(step4).
+    개입 타깃이 'instruction'이면 코드 이름 대신 지침 지시어 토큰을 치환한다(step5).
     """
     if handle is None:
         raise ValueError("개입에는 handle이 필요하다 (모델 내부 접근)")

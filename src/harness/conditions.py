@@ -35,7 +35,12 @@ class Source(str, Enum):
 
 
 class InstructionForm(str, Enum):
-    """지침 형식 — 긍정형인가 부정형인가(RQ3의 핵심 축)."""
+    """지침 형식 — 긍정형인가 부정형인가.
+
+    **통일 재실험에서는 조건 축이 아니다.** 계획서(§0)의 RQ3은 "지침의 영향력이 어느
+    통로(내용/어텐션)로 흐르는가"이고, 지침의 표현 방식은 그 축이 아니다. step4·step5는
+    POSITIVE로 고정해 통제한다. NEGATIVE는 archive_v1 시절 설계의 잔재로 남아 있다.
+    """
     POSITIVE = "positive"  # "camelCase로 작성하라"
     NEGATIVE = "negative"  # "snake_case로 작성하지 마라"
 
@@ -115,7 +120,7 @@ class Instruction:
     """지침 축.
 
     candidates : 생성 실험에서 표기 후보를 두 개로 못 박기 위한 닫힌 선택지.
-                 부정형이 긍정형과 논리적 등가가 되려면 필수(계획서 RQ3 주의사항).
+                 후보를 둘로 닫아야 표기 판정이 성립한다(계획서 §1 통제).
     """
     form: InstructionForm
     target_notation: Notation
@@ -137,7 +142,8 @@ class Instruction:
     def token_notation(self) -> Notation:
         """지침 문장에 실제로 등장하는 표기 토큰.
 
-        긍정형은 목표 표기를, 부정형은 위반 표기를 문장 안에 담는다(RQ3 착안점).
+        긍정형은 목표 표기를, 부정형은 위반 표기를 문장 안에 담는다.
+        (통일 재실험은 긍정형 고정 — 이 분기는 archive_v1 조건에서만 쓰였다.)
         """
         if self.form is InstructionForm.POSITIVE:
             return self.target_notation
@@ -154,7 +160,7 @@ class Intervention:
                 target="instruction"이면 공여는 "반대 지침"(runner가 자동 구성).
     amplify   : ATTENTION_AMPLIFY에서 곱할 배율(>1 증폭, <1 반감).
     target    : 치환 대상 토큰의 종류. "code"=선행 코드 이름(stepC/step1),
-                "instruction"=지침의 표기 지시어 단어(step4, RQ3 인과). 같은 KV 치환
+                "instruction"=지침의 표기 지시어 단어(step5, RQ3 인과). 같은 KV 치환
                 로직을 대상 토큰만 바꿔 재사용한다(CLAUDE.md §3).
     """
     kind: InterventionKind = InterventionKind.NONE
@@ -174,7 +180,7 @@ class Intervention:
     span: Optional[str] = None            # ATTENTION_AMPLIFY: 밀어 올릴 구간
                                           #   "rule_word"  = 규칙문 지시어만(step5와 스팬 일치)
                                           #   "instruction"= 지침 문장 전체(원 논문 정의)
-    target: str = "code"          # 개입 대상: "code"(선행 이름, stepC/1) | "instruction"(지침 지시어, step4)
+    target: str = "code"          # 개입 대상: "code"(선행 이름, stepC/1) | "instruction"(지침 지시어, step5)
 
     def __post_init__(self) -> None:
         if self.target not in ("code", "instruction"):
@@ -337,7 +343,7 @@ class Condition:
             head = "+".join(iv.kinds) if iv.kinds else iv.kind.value
             intr = f"int-{head}-{_layer_tag(iv.layers)}"
             if iv.target == "instruction":
-                intr += "-instr"          # 지침 지시어 타깃(step4) — 코드 타깃과 파일 구분
+                intr += "-instr"          # 지침 지시어 타깃(step5) — 코드 타깃과 파일 구분
             if iv.donor:
                 intr += f"-{_slugify(iv.donor)}"
             if iv.amplify is not None:

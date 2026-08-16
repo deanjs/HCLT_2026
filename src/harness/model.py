@@ -252,7 +252,7 @@ class ModelHandle:
 
         span_kind: 치환 대상 토큰을 찾는 방식.
           "def_name" = 코드 함수 이름(`def <nm>(`의 이름 부분, stepC/step1).
-          "literal"  = 문자열 nm 그대로의 첫 등장(step4 지침 지시어 "camelCase").
+          "literal"  = 문자열 nm 그대로의 첫 등장(step5 지침 지시어 "camelCase").
 
         반환 dict:
           viol_cache/comp_cache/donor_cache, viol_last, pairs, skipped,
@@ -429,7 +429,7 @@ class ModelHandle:
         회복률 = (S_int − S_base)/(S_clean − S_base).
         kind: 'key' / 'value' / 'key_value'. 텍스트는 그대로 두고 **내부 표현만** 바꾼다.
         token_unit: 'all'(전체 토큰) / 'last'(마지막 토큰만) — 이름 토큰 정렬 단위.
-        span_kind: 'def_name'(코드 이름) / 'literal'(지침 지시어, step4).
+        span_kind: 'def_name'(코드 이름) / 'literal'(지침 지시어, step5).
         """
         ctx = self._preference_context(
             viol_messages, comp_messages,
@@ -475,7 +475,7 @@ class ModelHandle:
         layers=None이면 전 층(0..num_layers-1). 산출은 층별 회복률 곡선 3개(kind별)와
         피크 층·K/V 경로별 기여도의 원자료가 된다(계획서 §5 Step 1).
         token_unit: 'all'(전체 토큰) / 'last'(마지막 토큰만) — 이름 토큰 정렬 단위.
-        span_kind: 'def_name'(코드 이름, step1) / 'literal'(지침 지시어, step4).
+        span_kind: 'def_name'(코드 이름, step1) / 'literal'(지침 지시어, step5).
         """
         if layers is None:
             layers = list(range(self.num_layers))
@@ -818,7 +818,7 @@ def _locate_target_tokens(text, offsets, names, span_kind: str = "def_name"):
 
     span_kind:
       "def_name" = `def <nm>(`에서 이름 부분만(stepC/step1 코드 이름).
-      "literal"  = 문자열 nm 그대로의 **첫 등장**(step4 지침 지시어 "camelCase").
+      "literal"  = 문자열 nm 그대로의 **첫 등장**(step5 지침 지시어 "camelCase").
                    지침 문장의 지시어는 rule 문장이 closed 문장보다 앞서므로 첫 등장이
                    실제 지시어(rule) 위치가 된다.
     한쪽이라도 못 찾으면 그 이름은 빈 리스트 → align_name_tokens가 스킵한다.
