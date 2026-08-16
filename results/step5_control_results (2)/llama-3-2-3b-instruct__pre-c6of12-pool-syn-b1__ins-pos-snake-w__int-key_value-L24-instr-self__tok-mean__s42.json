@@ -1,0 +1,87 @@
+{
+  "step": "step5_instr-cause-control",
+  "rq": "RQ3",
+  "prediction": "통제이므로 전이율이 0 근처여야 정상",
+  "created_at": "2026-08-16T05:43:20.762396+00:00",
+  "condition": {
+    "model": {
+      "name": "unsloth/Llama-3.2-3B-Instruct",
+      "family": "llama",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 6,
+      "n_functions": 12,
+      "composition": "pool",
+      "source": "synthetic",
+      "repo_lang": null,
+      "repo_file": null,
+      "pool_block": 1,
+      "lang": null
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "snake",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "key_value",
+      "layers": [
+        24
+      ],
+      "donor": "self",
+      "amplify": null,
+      "target": "instruction"
+    },
+    "seed": 42,
+    "task_ids": [],
+    "tag": null,
+    "token_unit": "mean"
+  },
+  "metrics": {
+    "compliance_rate": null,
+    "compliance_preference": -0.7499999403953552,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {},
+    "extra": {
+      "mode": "intervene",
+      "intervention_target": "instruction",
+      "donor": "control_self",
+      "target": "snake",
+      "S_clean": 0.03125,
+      "S_base": -0.7500000298023224,
+      "gap": 0.7812500298023224,
+      "undecidable": true,
+      "undecidable_gap_min": 1.0,
+      "S_int": -0.7499999403953552,
+      "recovery": 1.144409136031756e-07,
+      "layer": 24,
+      "kind": "key_value",
+      "n_substituted_tokens": 2,
+      "skipped_names": [],
+      "viol_names": [
+        "snake_case"
+      ],
+      "donor_names": [
+        "snake_case"
+      ]
+    }
+  },
+  "meta": {
+    "python": "3.12.13",
+    "git_sha": "3e8f5175e32edd8889426ef78686a0589aa9a4fb",
+    "git_dirty": true,
+    "torch": "2.11.0+cu128",
+    "transformers": "5.13.1",
+    "accelerate": "1.14.0",
+    "gpu": "Tesla T4"
+  }
+}

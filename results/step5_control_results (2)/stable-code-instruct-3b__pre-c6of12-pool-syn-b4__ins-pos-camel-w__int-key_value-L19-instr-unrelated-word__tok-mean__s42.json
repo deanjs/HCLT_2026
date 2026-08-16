@@ -1,0 +1,87 @@
+{
+  "step": "step5_instr-cause-control",
+  "rq": "RQ3",
+  "prediction": "통제이므로 전이율이 0 근처여야 정상",
+  "created_at": "2026-08-16T05:47:39.522278+00:00",
+  "condition": {
+    "model": {
+      "name": "stabilityai/stable-code-instruct-3b",
+      "family": "stability",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 6,
+      "n_functions": 12,
+      "composition": "pool",
+      "source": "synthetic",
+      "repo_lang": null,
+      "repo_file": null,
+      "pool_block": 4,
+      "lang": null
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "camel",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "key_value",
+      "layers": [
+        19
+      ],
+      "donor": "unrelated_word",
+      "amplify": null,
+      "target": "instruction"
+    },
+    "seed": 42,
+    "task_ids": [],
+    "tag": null,
+    "token_unit": "mean"
+  },
+  "metrics": {
+    "compliance_rate": null,
+    "compliance_preference": -4.130899726762408,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {},
+    "extra": {
+      "mode": "intervene",
+      "intervention_target": "instruction",
+      "donor": "control_unrelated_word",
+      "target": "camel",
+      "S_clean": -5.147848326305365,
+      "S_base": -3.222066929156398,
+      "gap": 1.9257813971489668,
+      "undecidable": false,
+      "undecidable_gap_min": 1.0,
+      "S_int": -4.130899726762408,
+      "recovery": 0.4719293679705787,
+      "layer": 19,
+      "kind": "key_value",
+      "n_substituted_tokens": 2,
+      "skipped_names": [],
+      "viol_names": [
+        "camelCase"
+      ],
+      "donor_names": [
+        "project"
+      ]
+    }
+  },
+  "meta": {
+    "python": "3.12.13",
+    "git_sha": "3e8f5175e32edd8889426ef78686a0589aa9a4fb",
+    "git_dirty": true,
+    "torch": "2.11.0+cu128",
+    "transformers": "5.13.1",
+    "accelerate": "1.14.0",
+    "gpu": "Tesla T4"
+  }
+}
