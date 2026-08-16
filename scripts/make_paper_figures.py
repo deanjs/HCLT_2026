@@ -11,6 +11,7 @@ HCLT 템플릿(A4·2단·10pt)에 맞춘다.
   step3/figures/code_causality_<모델>    통제 뺀 표기 순효과 (RQ2)   모델당 1장
   step3/figures/key_vs_value             내용 vs 어텐션 요약 막대
   step4/figures/layer_alignment_<모델>   관측 층 vs 인과 층 (RQ3)    모델당 1장
+  step5/figures/control                  지침 개입: 처치 vs 자기 통제
 
 **모두 단 폭(3.3in)이다.** 모델마다 세로 눈금 범위가 크게 달라 한 장에 몰아넣으면 읽을 수 없고,
 2단 조판에서도 단 폭 그림이 배치가 자유롭다.
@@ -211,11 +212,72 @@ def fig4_key_vs_value(out: Path):
     plt.close(fig)
 
 
+# ── 그림 5. step5 통제 — 처치 vs 자기 통제 ──────────────────────────────
+PEAK = {"qwen": 27, "deepseek": 17, "llama": 24, "stability": 19}
+
+
+def fig5_instruction_control(out: Path):
+    """지침 개입: 처치(반대 지침)와 자기 통제를 방식별로 나란히.
+
+    자기 통제 = **같은 지침의 같은 지시어**를 덮는다. 표기 정보가 새로 들어가지 않으므로
+    여기서 나오는 값은 '덮어쓰는 행위 자체'의 몫(거품)이다.
+    """
+    ctrl = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    for r in load("step5_instr-cause-control"):
+        ex = r["metrics"]["extra"]
+        if ex.get("mode") != "intervene_sweep" or ex.get("undecidable"):
+            continue
+        m = r["condition"]["model"]["family"]
+        vals = r["metrics"]["per_layer"].get(str(PEAK[m])) or r["metrics"]["per_layer"].get(PEAK[m]) or {}
+        for k in ("value", "key"):
+            x = vals.get(f"{k}__recovery")
+            if x is not None:
+                ctrl[m][ex["donor"]][k].append(x)
+    treat = defaultdict(lambda: defaultdict(list))
+    for r in load("step5_instr-cause"):
+        m = r["condition"]["model"]["family"]
+        if r["metrics"]["extra"].get("undecidable"):
+            continue
+        vals = r["metrics"]["per_layer"].get(str(PEAK[m]), {})
+        for k in ("value", "key"):
+            x = vals.get(f"{k}__recovery")
+            if x is not None:
+                treat[m][k].append(x)
+
+    models = [m for m in MODELS if ctrl[m]]
+    x = range(len(models))
+    fig, ax = plt.subplots(figsize=(3.3, 2.4))
+    series = [("value", "treat", C_VALUE, "Value: opposite instr."),
+              ("value", "ctrl", "#9ecae1", "Value: self control"),
+              ("key", "treat", C_KEY, "Key: opposite instr."),
+              ("key", "ctrl", "#d9d9d9", "Key: self control")]
+    w = 0.2
+    for i, (kind, which, color, lab) in enumerate(series):
+        vals, errs = [], []
+        for m in models:
+            xs = treat[m][kind] if which == "treat" else ctrl[m]["control_self"][kind]
+            a, b = ci95(xs) if xs else (float("nan"), 0.0)
+            vals.append(a); errs.append(b)
+        ax.bar([j + (i - 1.5) * w for j in x], vals, w, yerr=errs, capsize=1.5,
+               color=color, label=lab, error_kw={"linewidth": 0.6})
+    ax.axhline(0, color="black", linewidth=0.5)
+    ax.set_xticks(list(x))
+    ax.set_xticklabels([f"{LABEL[m].split('-')[0]}\nL{PEAK[m]}" for m in models], fontsize=6.5)
+    ax.set_ylabel("Transfer rate")
+    ax.margins(y=0.30)
+    ax.legend(frameon=False, fontsize=5.8, ncol=2, handlelength=1.0, columnspacing=0.8)
+    ax.grid(axis="y", alpha=0.25, linewidth=0.4)
+    fig.tight_layout(pad=0.4)
+    fig.savefig(out / "control.pdf"); fig.savefig(out / "control.png")
+    plt.close(fig)
+
+
 def main() -> None:
     jobs = [(fig1_cliff, "docs/step1/figures"),
             (fig2_code_causality, "docs/step3/figures"),
             (fig4_key_vs_value, "docs/step3/figures"),
-            (fig3_instruction, "docs/step4/figures")]
+            (fig3_instruction, "docs/step4/figures"),
+            (fig5_instruction_control, "docs/step5/figures")]
     for fn, d in jobs:
         out = Path(d); out.mkdir(parents=True, exist_ok=True)
         fn(out)
