@@ -3,7 +3,7 @@
 > **성격:** 실험 A(방법 점검). 새 주장을 만드는 실험이 아니라 **기존 방법이 고장났는지 확인**한 것.
 > **대상:** step3(코드 인과)·step5(지침 인과)가 공유하는 KV 치환 로직.
 > **실행:** 4모델 × 6묶음 × 3갈래 = 72조건, Tesla T4, 모델당 몇 분.
-> **재현:** `python scripts/diag_kv_phase_summary.py results/diag_kv-phase_results --figs docs/diag/figures`
+> **재현:** `python scripts/diag_kv_phase_summary.py results/diag_kv-phase --figs docs/diag/figures`
 
 ---
 
@@ -16,7 +16,7 @@ Value에는 그런 것이 없다. 그런데 우리는 여러 조각을 **평균 
 → 그러면 "어텐션을 바꿔도 안 돌아온다"가 **어텐션 경로의 성질**인지
 **우리가 Key를 망가뜨린 탓**인지 구분할 수 없다. 편향의 방향이 우리 결론과 같아
 독립적인 감사 문서 세 편이 모두 이 지점을 지적했다
-(`docs/구조적_결함.md` A3 · `docs/step3/구조적결함.md` A2 · `docs/결함검증_재실험판정.md` §3-1).
+(`docs/구조적_결함.md` A3 · `docs/step3/구조적_결함.md` A2 · `docs/결함검증_재실험판정.md` §3-1).
 
 **재는 값**
 
