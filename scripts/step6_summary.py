@@ -160,6 +160,7 @@ def _figures(rec, gen, PEAK, out: Path):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
     matplotlib.rcParams.update({"font.family": "serif", "font.size": 8, "figure.dpi": 300,
                                 "axes.labelsize": 8, "xtick.labelsize": 7,
                                 "ytick.labelsize": 7, "legend.fontsize": 7})
@@ -194,20 +195,31 @@ def _figures(rec, gen, PEAK, out: Path):
     for r in gen:
         ex = r["metrics"]["extra"]
         by[r["condition"]["model"]["family"]][ex["strength"] or 0.0].append(ex)
-    fig, ax = plt.subplots(figsize=(3.3, 2.3))
+    fig, ax = plt.subplots(figsize=(3.3, 2.6))
     for m, color in zip(MODELS, ("tab:blue", "tab:orange", "tab:green", "tab:red")):
         if not by[m]:
             continue
         xs = sorted(by[m])
         ax.plot(xs, [st.mean([e["compliant"] for e in by[m][x]]) for x in xs],
-                marker="o", ms=3, color=color, label=f"{LABEL[m].split('-')[0]} compliance")
+                marker="o", ms=3, color=color, label=LABEL[m].split("-")[0])
         ax.plot(xs, [st.mean([e["name_ok"] for e in by[m][x]]) for x in xs],
                 marker="s", ms=3, color=color, linestyle="--", alpha=0.6)
+    # 선 종류가 무엇을 뜻하는지 별도 범례 — 없으면 점선 4개가 설명 없이 떠 있다
+    style_keys = [Line2D([], [], color="0.3", marker="o", ms=3, linestyle="-",
+                         label="compliance (solid)"),
+                  Line2D([], [], color="0.3", marker="s", ms=3, linestyle="--",
+                         label="name intact (dashed)")]
     ax.set_xlabel("Steering strength"); ax.set_ylabel("Rate")
-    ax.set_ylim(-0.05, 1.15); ax.grid(alpha=0.25, linewidth=0.4)
-    ax.legend(frameon=False, fontsize=6, loc="lower left")
-    fig.tight_layout(pad=0.4)
-    fig.savefig(out / "name_health.pdf"); fig.savefig(out / "name_health.png")
+    ax.set_ylim(-0.05, 1.10); ax.grid(alpha=0.25, linewidth=0.4)
+    # 모델 범례는 **그림 좌표계**에 둔다(축 밖 범례는 tight_layout이 계산에 넣지 못해 잘린다).
+    # subplots_adjust로 위쪽 자리를 먼저 비워 둔 뒤 fig.legend를 얹는다.
+    fig.subplots_adjust(top=0.86, left=0.17, right=0.97, bottom=0.17)
+    fig.legend(frameon=False, fontsize=6.5, ncol=4, columnspacing=0.9, handlelength=1.3,
+               loc="upper center", bbox_to_anchor=(0.55, 1.0))
+    ax.legend(handles=style_keys, frameon=False, fontsize=6.5, loc="lower left",
+              handlelength=1.6)
+    fig.savefig(out / "name_health.pdf")
+    fig.savefig(out / "name_health.png")
     plt.close(fig)
 
 

@@ -65,28 +65,33 @@ def ci95(xs):
 
 # ── 그림 1. 준수율 절벽 ──────────────────────────────────────────────────
 def fig1_cliff(out: Path):
+    # **두 지침 방향을 모두 그린다.** camel만 그리면 극적인 절벽만 남아,
+    # "RQ1은 방향 조건부로 성립한다"는 이 스텝의 핵심 단서가 그림에서 사라진다.
     rows = load("step1_cliff")
     by = defaultdict(lambda: defaultdict(list))
     for r in rows:
         c = r["condition"]
-        if c["instruction"]["target_notation"] != "camel":
-            continue                              # snake 방향은 천장 효과 — 본문에 서술만
         n_viol = c["preceding"]["n_functions"] - c["preceding"]["n_compliant"]
-        by[c["model"]["family"]][n_viol].append(1.0 if r["metrics"]["extra"]["first_compliant"] else 0.0)
+        key = (c["model"]["family"], c["instruction"]["target_notation"])
+        by[key][n_viol].append(1.0 if r["metrics"]["extra"]["first_compliant"] else 0.0)
 
-    fig, ax = plt.subplots(figsize=(3.3, 2.2))
+    fig, ax = plt.subplots(figsize=(3.3, 2.45))
     for m, color, mk in (("qwen", "tab:blue", "o"), ("stability", "tab:red", "s")):
-        if m not in by:
-            continue
-        xs = sorted(by[m])
-        pts = [ci95(by[m][x]) for x in xs]
-        ax.plot(xs, [a for a, _ in pts], marker=mk, ms=3, color=color, label=LABEL[m])
-        ax.fill_between(xs, [a - b for a, b in pts], [a + b for a, b in pts],
-                        color=color, alpha=0.18, linewidth=0)
+        for tgt, style, alpha in (("camel", "-", 0.18), ("snake", "--", 0.10)):
+            k = (m, tgt)
+            if k not in by:
+                continue
+            xs = sorted(by[k])
+            pts = [ci95(by[k][x]) for x in xs]
+            ax.plot(xs, [a for a, _ in pts], marker=mk, ms=3, color=color, linestyle=style,
+                    label=f"{LABEL[m].split('-')[0]}, {tgt} instr.")
+            ax.fill_between(xs, [a - b for a, b in pts], [a + b for a, b in pts],
+                            color=color, alpha=alpha, linewidth=0)
     ax.set_xlabel("Violating names in the context (out of 12)")
     ax.set_ylabel("Compliance rate")
-    ax.set_ylim(-0.05, 1.18)
-    ax.legend(frameon=False, loc="upper right", handlelength=1.4)
+    ax.set_ylim(-0.05, 1.08)
+    ax.legend(frameon=False, ncol=2, handlelength=1.6, columnspacing=1.0,
+              loc="lower center", bbox_to_anchor=(0.5, 1.01), borderaxespad=0.0)
     ax.grid(alpha=0.25, linewidth=0.4)
     fig.tight_layout(pad=0.3)
     fig.savefig(out / "cliff.pdf"); fig.savefig(out / "cliff.png")
