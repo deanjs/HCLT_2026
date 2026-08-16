@@ -150,22 +150,20 @@ class spotlight_attention:
             attn = torch.matmul(query, k.transpose(2, 3)) * scaling      # [B,Hq,q,k]
             if attention_mask is not None:
                 attn = attn + attention_mask[..., : k.shape[-2]]
-            probs = torch.softmax(attn, dim=-1)
+            # 정품 eager처럼 소프트맥스는 float32로 올려 계산(fp16 NaN 방지)
+            probs = torch.softmax(attn, dim=-1, dtype=torch.float32)
             klen = probs.shape[-1]
             cols = [p for p in span if 0 <= p < klen]
             if cols:
                 idx = torch.tensor(cols, device=probs.device)
                 psi_cur = probs.index_select(-1, idx).sum(-1, keepdim=True)   # [B,Hq,q,1]
-                apply = psi_cur < psi_t
-                factor = torch.where(apply, psi_t / psi_cur.clamp_min(1e-12),
+                factor = torch.where(psi_cur < psi_t, psi_t / psi_cur.clamp_min(1e-12),
                                      torch.ones_like(psi_cur))
-                new = probs.clone()
-                span_vals = new.index_select(-1, idx) * factor
-                new.index_copy_(-1, idx, span_vals)
-                new = new / new.sum(-1, keepdim=True)
+                span_vals = probs.index_select(-1, idx) * factor
+                probs = probs.index_copy(-1, idx, span_vals)
+                probs = probs / probs.sum(-1, keepdim=True)
                 # 측정 ①: 마지막 쿼리행(이름 생성 위치)의 스팬 비중 평균
-                sink.append(float(new.index_select(-1, idx).sum(-1)[..., -1].mean().item()))
-                probs = new
+                sink.append(float(probs.index_select(-1, idx).sum(-1)[..., -1].mean().item()))
             probs = probs.to(query.dtype)
             out = torch.matmul(probs, v)                 # [B,Hq,q,d]
             out = out.transpose(1, 2).contiguous()       # [B,q,Hq,d]
