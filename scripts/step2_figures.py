@@ -120,6 +120,22 @@ def _align_zero(ax1, ax2):
     ax2.set_ylim(-f * hi2 / (1 - f), hi2)
 
 
+def _legend_above(ax, ncol=3, extra=None):
+    """범례를 축 **밖(위)** 에 가로로 둔다 — 그래프 안에 두면 곡선과 겹친다."""
+    h, l = ax.get_legend_handles_labels()
+    if extra is not None:
+        h2, l2 = extra.get_legend_handles_labels()
+        h, l = h + h2, l + l2
+    ax.legend(h, l, frameon=False, ncol=ncol, handlelength=1.5,
+              columnspacing=1.1, loc="lower center", bbox_to_anchor=(0.5, 1.01),
+              borderaxespad=0.0)
+
+
+def _nonneg(ax):
+    """어텐션·노름은 음수가 될 수 없다 — 축을 0에서 시작해 빈 공간을 없앤다."""
+    ax.set_ylim(bottom=0)
+
+
 def _save(fig, out: Path, name: str):
     fig.tight_layout(pad=0.4)
     fig.savefig(out / f"{name}.pdf")
@@ -146,35 +162,35 @@ def main() -> None:
         A = lambda span, metric, src=per: [src[m][L][span][metric] for L in layers]  # noqa: E731
 
         # ① 토큰당 어텐션 — camel / snake / 지침(참고)
-        fig, ax = plt.subplots(figsize=(3.3, 2.3))
+        fig, ax = plt.subplots(figsize=(3.3, 2.45))
         _band(ax, layers, dict(zip(layers, A("code_camel", "attention_weight"))),
-              C_CAMEL, "camel names in context")
+              C_CAMEL, "camel names")
         _band(ax, layers, dict(zip(layers, A("code_snake", "attention_weight"))),
-              C_SNAKE, "snake names in context")
+              C_SNAKE, "snake names")
         if per[m][layers[0]].get("instruction"):
             _band(ax, layers, dict(zip(layers, A("instruction", "attention_weight"))),
-                  C_INSTR, "instruction (reference)", style=":")
+                  C_INSTR, "instruction (ref.)", style=":")
         ax.set_xlabel("Layer"); ax.set_ylabel("Attention per token")
-        ax.margins(y=0.28); ax.grid(alpha=0.25, linewidth=0.4)
-        ax.legend(frameon=False, loc="upper left", handlelength=1.6)
+        ax.margins(y=0.10); ax.grid(alpha=0.25, linewidth=0.4)
+        _nonneg(ax); _legend_above(ax, ncol=3)
         _save(fig, out, f"attention_{m}")
 
         # ② 토큰당 기여 상한 Σa‖v‖
-        fig, ax = plt.subplots(figsize=(3.3, 2.3))
+        fig, ax = plt.subplots(figsize=(3.3, 2.45))
         _band(ax, layers, dict(zip(layers, A("code_camel", "av_norm"))), C_CAMEL, "camel names")
         _band(ax, layers, dict(zip(layers, A("code_snake", "av_norm"))), C_SNAKE, "snake names")
-        ax.set_xlabel("Layer"); ax.set_ylabel(r"$\sum a\|v\|$ per token (upper bound)")
-        ax.margins(y=0.28); ax.grid(alpha=0.25, linewidth=0.4)
-        ax.legend(frameon=False, loc="upper left", handlelength=1.6)
+        ax.set_xlabel("Layer"); ax.set_ylabel(r"$\sum a\|v\|$ per token")
+        ax.margins(y=0.10); ax.grid(alpha=0.25, linewidth=0.4)
+        _nonneg(ax); _legend_above(ax, ncol=2)
         _save(fig, out, f"av_{m}")
 
         # ③ ‖v‖ — 내용 자체의 크기 (이미 토큰당 평균)
-        fig, ax = plt.subplots(figsize=(3.3, 2.3))
+        fig, ax = plt.subplots(figsize=(3.3, 2.45))
         _band(ax, layers, dict(zip(layers, A("code_camel", "v_norm"))), C_CAMEL, "camel names")
         _band(ax, layers, dict(zip(layers, A("code_snake", "v_norm"))), C_SNAKE, "snake names")
         ax.set_xlabel("Layer"); ax.set_ylabel(r"$\|v\|$ per token")
-        ax.margins(y=0.28); ax.grid(alpha=0.25, linewidth=0.4)
-        ax.legend(frameon=False, loc="upper left", handlelength=1.6)
+        ax.margins(y=0.10); ax.grid(alpha=0.25, linewidth=0.4)
+        _nonneg(ax); _legend_above(ax, ncol=2)
         _save(fig, out, f"vnorm_{m}")
 
         # ④ ★ 격차 — 토큰당(실선) vs 합(점선). 정규화가 결론을 바꾸는지 한 장에.
@@ -187,21 +203,20 @@ def main() -> None:
             sr = raw[m][L]["code_snake"]["attention_weight"]
             gap_per[L] = [b - a for a, b in zip(cp, sp)]
             gap_raw[L] = [b - a for a, b in zip(cr, sr)]
-        fig, ax = plt.subplots(figsize=(3.3, 2.3))
+        fig, ax = plt.subplots(figsize=(3.3, 2.45))
         mu_p = _band(ax, layers, gap_per, C_SNAKE, "per token (used)")
         ax2 = ax.twinx()
         mu_r = [st.mean(gap_raw[L]) for L in layers]
         ax2.plot(layers, mu_r, color="0.45", linestyle="--", linewidth=1.0,
-                 label="span sum (not used)")
+                 label="span sum")
         ax2.set_ylabel("span sum", color="0.45", fontsize=7)
         ax2.tick_params(axis="y", labelcolor="0.45", labelsize=6)
         ax.set_xlabel("Layer"); ax.set_ylabel("snake − camel, per token")
-        ax.margins(y=0.28); ax2.margins(y=0.28)
+        ax.margins(y=0.12); ax2.margins(y=0.12)
         ax.grid(alpha=0.25, linewidth=0.4)
         _align_zero(ax, ax2)                      # 0선을 같은 높이로
         ax.axhline(0, color="black", linewidth=0.5)
-        h1, l1 = ax.get_legend_handles_labels(); h2, l2 = ax2.get_legend_handles_labels()
-        ax.legend(h1 + h2, l1 + l2, frameon=False, loc="upper left", handlelength=1.6)
+        _legend_above(ax, ncol=2, extra=ax2)
         _save(fig, out, f"gap_{m}")
 
         # ── 보고 ────────────────────────────────────────────────────

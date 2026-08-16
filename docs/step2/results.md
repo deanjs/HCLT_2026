@@ -122,7 +122,7 @@ def split_config(value):
 |---|---|
 | ![qwen](figures/attention_qwen.png) | ![deepseek](figures/attention_deepseek.png) |
 | **Llama-3.2-3B (범용)** | **StableCode-3B** |
-| ![llama](figures/attention_llama.png) | ![stable](figures/attention_stable.png) |
+| ![llama](figures/attention_llama.png) | ![stable](figures/attention_stability.png) |
 
 **기여 상한 ‖a·v‖ — 층별**
 
@@ -130,7 +130,7 @@ def split_config(value):
 |---|---|
 | ![qwen](figures/av_qwen.png) | ![deepseek](figures/av_deepseek.png) |
 | **Llama-3.2-3B (범용)** | **StableCode-3B** |
-| ![llama](figures/av_llama.png) | ![stable](figures/av_stable.png) |
+| ![llama](figures/av_llama.png) | ![stable](figures/av_stability.png) |
 
 **snake − camel 격차 (직접 차이)**
 
@@ -138,7 +138,7 @@ def split_config(value):
 |---|---|
 | ![qwen](figures/gap_qwen.png) | ![deepseek](figures/gap_deepseek.png) |
 | **Llama-3.2-3B (범용)** | **StableCode-3B** |
-| ![llama](figures/gap_llama.png) | ![stable](figures/gap_stable.png) |
+| ![llama](figures/gap_llama.png) | ![stable](figures/gap_stability.png) |
 
 **‖v‖ — 내용 자체의 크기**
 
@@ -146,7 +146,7 @@ def split_config(value):
 |---|---|
 | ![qwen](figures/vnorm_qwen.png) | ![deepseek](figures/vnorm_deepseek.png) |
 | **Llama-3.2-3B (범용)** | **StableCode-3B** |
-| ![llama](figures/vnorm_llama.png) | ![stable](figures/vnorm_stable.png) |
+| ![llama](figures/vnorm_llama.png) | ![stable](figures/vnorm_stability.png) |
 
 ### 정규화가 어디서 결론을 바꾸나
 
@@ -176,6 +176,28 @@ StableCode L15). 정성 결론은 유지되고, 바뀌는 것은 **초반 층의
 
 전 모델·전 지표에서 **부호가 양수** — 위반(snake) 구간을 더 참조한다.
 격차의 봉우리는 **중후반 층**에 몰린다.
+
+### 모델마다 곡선 모양이 왜 다른가
+
+같은 축으로 그려도 네 모델의 그림이 꽤 다르게 보인다. 곡선의 **높이**가 아니라
+**지침과 코드의 상대 관계**가 다르기 때문이다(토큰당, 전 층 평균).
+
+| 모델 | 코드 camel | 코드 snake | 지침 | **지침 ÷ 코드** |
+|---|---|---|---|---|
+| Qwen2.5-Coder-3B | 0.00186 | 0.00202 | 0.00420 | 2.16 |
+| **DeepSeek-Coder-6.7B** | 0.00075 | 0.00096 | 0.00788 | **9.21** |
+| StableCode-3B | 0.00112 | 0.00128 | 0.00378 | 3.15 |
+| **Llama-3.2-3B** (범용) | 0.00169 | 0.00197 | 0.00059 | **0.32** |
+
+- **DeepSeek**은 지침을 코드보다 **9배** 본다. 그래서 회색 점선이 압도적으로 높고
+  코드 두 선은 바닥에 깔린다.
+- **StableCode**는 3배로 중간이며, 코드 두 선의 격차가 **중반(L15~17)** 에서 벌어진다.
+  Qwen처럼 후반에 한 번 솟는 봉우리가 아니라 **중반에 넓게 퍼진** 모양이다.
+- **Llama만 지침보다 코드를 더 본다**(0.32배). 범용 모델이 코드 특화 3모델과
+  갈리는 지점이며, step4·step5에서도 같은 방향으로 갈린다.
+
+**코드 특화 3모델은 지침을 코드보다 더 보고, 범용 1모델은 그 반대다.**
+곡선 모양의 차이는 대부분 이 비율에서 나온다.
 
 ---
 
