@@ -159,15 +159,27 @@ class Intervention:
     layers: Optional[LayerSpec] = None
     donor: Optional[str] = None
     amplify: Optional[float] = None
+    # 한 번에 **여러 방식**을 재고 싶을 때 쓴다(예: 한 층에서 key/value/key_value 전부).
+    # 지정하면 kind 대신 이 목록이 실행을 규정한다 — 전에는 스윕이 세 방식을 하드코딩해
+    # 조건 객체가 실행을 규정하지 못했다(CLAUDE.md §7 위반).
+    kinds: Optional[tuple[str, ...]] = None
     target: str = "code"          # 개입 대상: "code"(선행 이름, stepC/1) | "instruction"(지침 지시어, step4)
 
     def __post_init__(self) -> None:
         if self.target not in ("code", "instruction"):
             raise ValueError('intervention target은 "code" 또는 "instruction"만 허용한다')
         if self.kind is InterventionKind.NONE:
-            if self.layers or self.donor or self.amplify is not None or self.target != "code":
+            if (self.layers or self.donor or self.amplify is not None
+                    or self.target != "code" or self.kinds):
                 raise ValueError("kind=NONE에는 개입 파라미터를 두지 않는다")
             return
+        if self.kinds is not None:
+            allowed = {"key", "value", "key_value"}
+            bad = [k for k in self.kinds if k not in allowed]
+            if bad:
+                raise ValueError(f"잴 수 없는 방식: {bad} (key/value/key_value)")
+            if len(set(self.kinds)) != len(self.kinds):
+                raise ValueError("kinds에 같은 방식을 두 번 넣지 않는다")
         if self.layers is None:
             raise ValueError(f"kind={self.kind.value}에는 layers가 필요하다")
         if isinstance(self.layers, str) and self.layers != "sweep":
@@ -252,6 +264,8 @@ class Condition:
                 donor=d["intervention"]["donor"],
                 amplify=d["intervention"]["amplify"],
                 target=d["intervention"].get("target", "code"),
+                kinds=(tuple(d["intervention"]["kinds"])
+                       if d["intervention"].get("kinds") else None),
             ),
             seed=d["seed"],
             task_ids=tuple(d.get("task_ids", ())),
@@ -283,7 +297,8 @@ class Condition:
         if iv.kind is InterventionKind.NONE:
             intr = "int-none"
         else:
-            intr = f"int-{iv.kind.value}-{_layer_tag(iv.layers)}"
+            head = "+".join(iv.kinds) if iv.kinds else iv.kind.value
+            intr = f"int-{head}-{_layer_tag(iv.layers)}"
             if iv.target == "instruction":
                 intr += "-instr"          # 지침 지시어 타깃(step4) — 코드 타깃과 파일 구분
             if iv.donor:

@@ -122,8 +122,9 @@ def _run_intervention(condition: Condition, handle: Optional[ModelHandle]) -> Ru
         raise ValueError("개입에는 handle이 필요하다 (모델 내부 접근)")
 
     iv = condition.intervention
-    if iv.is_sweep:
-        # 전 층 × K/V 분해 스윕(step 1). 단일 층(step C)과 설정을 공유한다.
+    if iv.is_sweep or iv.kinds:
+        # 여러 방식(key/value/key_value)을 한 번에 재거나 전 층을 훑는 경로.
+        # 프롬프트를 한 번만 forward하고 캐시를 재사용하므로 방식이 늘어도 비용이 적다.
         return _run_intervention_sweep(condition, handle)
     layers = list(iv.layers)
     if len(layers) != 1:
@@ -365,7 +366,9 @@ def _run_intervention_sweep(condition: Condition, handle: Optional[ModelHandle])
         viol_names=setup["viol_names"], donor_names=setup["donor_names"],
         candidate_compliant=setup["candidate_compliant"],
         candidate_violation=setup["candidate_violation"],
-        layers=None, kinds=("key", "value", "key_value"),
+        # 조건이 실행을 규정한다 — 층도 방식도 하드코딩하지 않는다(CLAUDE.md §7).
+        layers=(None if condition.intervention.is_sweep else list(condition.intervention.layers)),
+        kinds=tuple(condition.intervention.kinds or ("key", "value", "key_value")),
         donor_messages=setup["donor_messages"],
         token_unit=condition.token_unit, span_kind=span_kind,
     )
