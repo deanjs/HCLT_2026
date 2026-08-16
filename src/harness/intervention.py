@@ -84,6 +84,23 @@ def align_name_groups(
     return groups, skipped
 
 
+# 판정 불가 기준선(연구적 임계). |S_깨끗 − S_위반|이 이보다 작으면 "문맥·지침이 애초에
+# 행동을 흔들지 못한 조건"이므로 회복률을 해석하지 않는다(CLAUDE.md §4).
+# 1.0 nat은 step3·step5의 영향력 분포를 보고 정했다. 결과에 gap과 함께 저장되므로
+# 집계 단계에서 다른 값으로 다시 자를 수 있다(민감도 분석 — docs/step5/결과_재집계.md §3).
+UNDECIDABLE_GAP = 1.0
+
+
+def effect_size(s_clean: float, s_base: float) -> float:
+    """영향력 = |S_깨끗 − S_위반|. 회복률의 분모이자 판정 가능 여부의 기준."""
+    return abs(s_clean - s_base)
+
+
+def is_undecidable(s_clean: float, s_base: float, gap_min: float = UNDECIDABLE_GAP) -> bool:
+    """분모가 너무 작아 회복률을 믿을 수 없는 조건인가."""
+    return effect_size(s_clean, s_base) < gap_min
+
+
 def recovery_rate(
     s_clean: float, s_base: float, s_int: float, eps: float = 1e-9
 ) -> Optional[float]:

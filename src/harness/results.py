@@ -54,6 +54,42 @@ class ResultRecord:
         )
 
 
+def environment_meta() -> dict[str, Any]:
+    """결과를 만든 환경을 자동으로 수집한다 — git sha·라이브러리 버전·GPU.
+
+    결과는 불변(§6)인데 그 결과를 만든 코드가 가변이면 재현성이 성립하지 않는다.
+    특히 KV 캐시 레이아웃이 transformers 버전에 따라 세 갈래로 갈리므로(`model._cache_kv`),
+    **어떤 버전으로 뽑았는지가 수치 해석에 직접 영향을 준다.**
+
+    어느 항목이든 조회에 실패하면 그 자리에 사유 문자열을 넣고 계속한다(기록이 실행을 막지 않는다).
+    """
+    import platform
+    import subprocess
+
+    meta: dict[str, Any] = {"python": platform.python_version()}
+    try:
+        meta["git_sha"] = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL, text=True
+        ).strip()
+        dirty = subprocess.check_output(
+            ["git", "status", "--porcelain"], stderr=subprocess.DEVNULL, text=True
+        ).strip()
+        meta["git_dirty"] = bool(dirty)     # 커밋 안 된 수정 상태에서 돌렸는지
+    except Exception as exc:                # git이 없거나 저장소 밖
+        meta["git_sha"] = f"조회 실패: {exc}"
+    for name in ("torch", "transformers", "accelerate"):
+        try:
+            meta[name] = __import__(name).__version__
+        except Exception:
+            meta[name] = "미설치"
+    try:
+        import torch
+        meta["gpu"] = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU"
+    except Exception:
+        meta["gpu"] = "조회 실패"
+    return meta
+
+
 def result_path(condition: Condition, step: str, results_dir: Path = RESULTS_DIR) -> Path:
     """조건·step으로부터 결정적 결과 경로를 만든다: results/<step>/<slug>.json"""
     return Path(results_dir) / step / f"{condition.slug()}.json"
@@ -74,6 +110,10 @@ def save_result(
         )
     if record.created_at is None:
         record.created_at = datetime.now(timezone.utc).isoformat()
+    if not record.meta:
+        # 비어 있으면 자동으로 채운다 — 지금까지 3528개 결과가 전부 meta {}로 저장됐고,
+        # 그래서 어떤 코드·버전으로 만든 값인지 파일만 보고는 알 수 없다.
+        record.meta = environment_meta()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(record.to_dict(), ensure_ascii=False, indent=2),

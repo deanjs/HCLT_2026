@@ -15,6 +15,7 @@ from dataclasses import dataclass, replace
 from typing import Callable, Optional
 
 from .conditions import Condition, InterventionKind, Notation
+from .intervention import UNDECIDABLE_GAP, effect_size, is_undecidable
 from .metrics import Metrics
 from .model import ModelHandle
 import re
@@ -142,6 +143,11 @@ def _run_intervention(condition: Condition, handle: Optional[ModelHandle]) -> Ru
             "target": setup["target"].value,
             "S_clean": out["S_clean"],
             "S_base": out["S_base"],
+            # 영향력(회복률 분모)과 판정 가능 여부를 결과에 남긴다 — 집계 단계에서
+            # 어떤 조건이 왜 빠졌는지 파일만 보고 알 수 있어야 한다(CLAUDE.md §4).
+            "gap": effect_size(out["S_clean"], out["S_base"]),
+            "undecidable": is_undecidable(out["S_clean"], out["S_base"]),
+            "undecidable_gap_min": UNDECIDABLE_GAP,
             "S_int": out["S_int"],
             "recovery": out["recovery"],
             "layer": out["layer"],
@@ -298,6 +304,9 @@ def _run_intervention_sweep(condition: Condition, handle: Optional[ModelHandle])
             "target": setup["target"].value,
             "S_clean": out["S_clean"],
             "S_base": out["S_base"],
+            "gap": effect_size(out["S_clean"], out["S_base"]),
+            "undecidable": is_undecidable(out["S_clean"], out["S_base"]),
+            "undecidable_gap_min": UNDECIDABLE_GAP,
             "kinds": out["kinds"],
             "n_substituted_tokens": out["n_substituted_tokens"],
             "skipped_names": out["skipped_names"],
@@ -373,6 +382,13 @@ def _run_intervention_generate(
     iv = condition.intervention
     if iv.is_sweep:
         raise ValueError("step C는 단일 층. 전 층 스윕은 step 1")
+    if iv.target != "code":
+        # 조용한 오작동 금지: 이 경로는 iv.target을 읽지 않고 늘 선행 코드 이름을 치환한다.
+        # target="instruction"으로 부르면 파일명만 '지침 타깃'이고 실제로는 코드를 바꾼 결과가 남는다.
+        raise NotImplementedError(
+            "생성 기반 개입은 아직 target='code'만 지원한다 "
+            f"(받음: {iv.target!r}). 지침 지시어 치환은 선호 점수 경로를 쓴다."
+        )
     layer = list(iv.layers)[0]
     target = condition.instruction.target_notation
     violation = condition.instruction.violation_notation

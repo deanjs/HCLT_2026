@@ -176,6 +176,16 @@ class ModelHandle:
                     char_spans[span_name] = [(inst_start + a, inst_start + b) for a, b in spec]
         spans = locate_token_spans(offsets, char_spans)
 
+        # 조용한 실패 금지: 구간을 못 찾으면 지표가 None으로 저장되고, 집계에서 `.get(키, 0)`을
+        # 쓰면 "0을 봤다"로 오독된다. chat 템플릿이 지침 문장을 변형하는 모델에서 실제로 생긴다.
+        empty = [name for name, idxs in spans.items() if not idxs]
+        if empty:
+            raise ValueError(
+                f"프롬프트에서 찾지 못한 관측 구간: {empty}. "
+                "chat 템플릿이 문장을 변형했거나 이름/지시어 문자열이 어긋났다. "
+                "빈 구간을 그대로 저장하면 '주목하지 않았다'로 오독되므로 실행을 중단한다."
+            )
+
         # 3) forward — 어텐션·KV value 확보
         with torch.no_grad():
             out = self.model(**enc, output_attentions=True, use_cache=True)
@@ -299,6 +309,16 @@ class ModelHandle:
             groups = None
             n_sub = len(pairs)
 
+        if n_sub == 0:
+            # 조용한 실패 금지: 한 자리도 안 덮으면 S_int == S_base가 되어
+            # "개입했는데 효과가 없다"와 수치가 완전히 같아진다(회복률 0.0). 구분되어야 한다.
+            raise ValueError(
+                "치환할 토큰 자리를 하나도 찾지 못했다 — 개입이 실제로 일어나지 않는다. "
+                f"(정렬 단위={token_unit!r}, 구간 종류={span_kind!r}, "
+                f"이름 {len(viol_names)}개 중 {len(skipped)}개 정렬 실패). "
+                "이름·지시어를 프롬프트에서 못 찾았거나, token_unit='all'에서 토큰 수가 어긋난 경우다."
+            )
+
         def logp_candidate(cache, last_tok, cand):
             # [마지막 프롬프트 토큰 + cand[:-1]]을 캐시로 forward → 후보 토큰 logP 합.
             # 캐시를 복제해 forward가 원본을 늘리지 않게 한다(층 스윕에서 재사용).
@@ -338,6 +358,14 @@ class ModelHandle:
         token_unit="mean"이면 pairs 대신 groups로 mean-pool 치환한다: 공여 위치들의 KV를
         평균 내(한 벡터) 위반 이름의 모든 위치에 브로드캐스트(개수 불일치 허용, 스킵 없음).
         """
+        if kind not in ("key", "value", "key_value"):
+            # 조용한 실패 금지: 미지원 kind(예: attn_amplify)는 아무것도 안 바꾸고
+            # recovery=0.0을 돌려주어 "개입해도 안 돌아온다"처럼 보인다. 반드시 터뜨린다.
+            raise NotImplementedError(
+                f"치환으로 구현되지 않은 개입 종류: {kind!r}. "
+                "KV 캐시 편집으로 표현할 수 있는 것은 key/value/key_value뿐이다. "
+                "어텐션 증폭(attn_amplify)은 forward 훅이 필요하며 아직 구현되지 않았다."
+            )
         ek, ev = _cache_kv(work_cache, layer)
         dk, dv = _cache_kv(ctx["donor_cache"], layer)
         edit_k = kind in ("key", "key_value")
@@ -529,6 +557,16 @@ class ModelHandle:
             camel_vals = _value_cache(self.model(camel_ids, use_cache=True).past_key_values)
             snake_vals = _value_cache(self.model(snake_ids, use_cache=True).past_key_values)
 
+        if token_unit == "mean":
+            # 코사인은 **짝지어진 두 벡터**가 있어야 정의된다. mean-pool은 짝을 없애므로
+            # 개념상 맞지 않는다. 조용히 last로 바꿔치기하면 다른 정렬 단위로 잰 값이
+            # 통일 규격인 척 저장되므로, 여기서 명시적으로 거절한다(§3).
+            raise ValueError(
+                "v 코사인 관측은 token_unit='mean'을 지원하지 않는다 "
+                "(코사인은 1:1 짝이 필요). 이 관측만 'last'로 조건을 따로 만들고, "
+                "정렬 단위가 다르다는 사실을 결과 해석에 명시할 것."
+            )
+
         # 역할별 정렬: 같은 이름의 camel 토큰 위치 ↔ snake 토큰 위치.
         pairs, skipped = align_name_tokens(
             name_positions(camel_text, camel_off, camel_names),
@@ -571,6 +609,7 @@ class ModelHandle:
         forced_prefix: str = "def ",
         max_new_tokens: int = 24,
         token_unit: str = "all",
+        span_kind: str = "def_name",
     ) -> dict[str, Any]:
         """치환 전(baseline)·후(intervened)로 **실제 이름을 생성**한다(step C 생성 기반).
 
@@ -593,16 +632,7 @@ class ModelHandle:
             return enc["input_ids"].to(self.model.device), text, offsets
 
         def name_positions(text, offsets, names):
-            out = []
-            for nm in names:
-                spans = find_char_spans(text, [f"def {nm}("])
-                if not spans:
-                    out.append([]); continue
-                s, e = spans[0]
-                s, e = s + 4, e - 1
-                out.append([ti for ti, (ts, te) in enumerate(offsets)
-                            if te > ts and ts < e and te > s])
-            return out
+            return _locate_target_tokens(text, offsets, names, span_kind)
 
         viol_ids, viol_text, viol_off = prefix(viol_messages)
         d_ids, donor_text, donor_off = prefix(donor_messages)
@@ -612,11 +642,22 @@ class ModelHandle:
             viol_cache = self.model(viol_ids[:, :-1], use_cache=True).past_key_values
             donor_cache = self.model(d_ids[:, :-1], use_cache=True).past_key_values
 
-        pairs, skipped = align_name_tokens(
-            name_positions(viol_text, viol_off, viol_names),
-            name_positions(donor_text, donor_off, donor_names),
-            mode=token_unit,
-        )
+        vpos = name_positions(viol_text, viol_off, viol_names)
+        dpos = name_positions(donor_text, donor_off, donor_names)
+        if token_unit == "mean":
+            # 선호 점수 경로(_score_layer_kind)와 **같은** mean-pool 규격을 쓴다(§3 통일).
+            groups, skipped = align_name_groups(vpos, dpos)
+            pairs = None
+            n_sub = sum(len(vp) for vp, _ in groups)
+        else:
+            pairs, skipped = align_name_tokens(vpos, dpos, mode=token_unit)
+            groups = None
+            n_sub = len(pairs)
+        if n_sub == 0:
+            raise ValueError(
+                "치환할 토큰 자리를 하나도 찾지 못했다 — 개입 없이 생성하는 것과 같아진다. "
+                f"(정렬 단위={token_unit!r}, 구간 종류={span_kind!r})"
+            )
 
         def greedy(cache):
             c = _clone_cache(cache)
@@ -635,14 +676,29 @@ class ModelHandle:
 
         text_baseline = greedy(viol_cache)                 # 개입 없음
 
+        if kind not in ("key", "value", "key_value"):
+            raise NotImplementedError(f"치환으로 구현되지 않은 개입 종류: {kind!r}")
+
         edited = _clone_cache(viol_cache)                  # 개입: layer만 공여값으로
         ek, ev = _cache_kv(edited, layer)
         dk, dv = _cache_kv(donor_cache, layer)
-        for vp, dp in pairs:
-            if kind in ("key", "key_value"):
-                ek[:, :, vp, :] = dk[:, :, dp, :]
-            if kind in ("value", "key_value"):
-                ev[:, :, vp, :] = dv[:, :, dp, :]
+        edit_k = kind in ("key", "key_value")
+        edit_v = kind in ("value", "key_value")
+        if groups is not None:                              # mean-pool 경로
+            for vps, dps in groups:
+                km = dk[:, :, dps, :].mean(dim=2) if edit_k else None
+                vm = dv[:, :, dps, :].mean(dim=2) if edit_v else None
+                for vp in vps:
+                    if edit_k:
+                        ek[:, :, vp, :] = km
+                    if edit_v:
+                        ev[:, :, vp, :] = vm
+        else:                                               # 1:1 pairs 경로
+            for vp, dp in pairs:
+                if edit_k:
+                    ek[:, :, vp, :] = dk[:, :, dp, :]
+                if edit_v:
+                    ev[:, :, vp, :] = dv[:, :, dp, :]
         text_intervened = greedy(edited)
 
         return {
@@ -650,7 +706,7 @@ class ModelHandle:
             "text_intervened": forced_prefix + text_intervened,
             "layer": layer,
             "kind": kind,
-            "n_substituted_tokens": len(pairs),
+            "n_substituted_tokens": n_sub,
             "skipped_names": skipped,
         }
 

@@ -1,8 +1,20 @@
 # 하네스 실행 의존성. 조건 스키마·결과 저장·테스트는 이 목록 없이도 동작하며,
 # 실제 모델 로딩/측정(step A 이후)에만 필요하다.
-torch>=2.1
-transformers>=4.44
-accelerate>=0.30
-numpy>=1.24
-# 양자화(선택, step 2에서 정밀도 검증 후 사용)
-# bitsandbytes>=0.43
+#
+# **버전을 고정한다.** KV 캐시 레이아웃이 transformers 버전에 따라 세 갈래로 갈리고
+# (`model._cache_kv`: cache.layers[i].keys / key_cache[i] / legacy tuple),
+# 우리 실험은 그 자료구조를 직접 편집한다. 버전이 바뀌면 **개입이 일어나는 대상 자체가
+# 달라진다.** 노트북에서도 이 파일과 같은 버전을 설치할 것:
+#     !pip install -q -r requirements.txt
+# 실제로 쓴 버전은 결과 JSON의 meta에 자동 기록된다(results.environment_meta).
+torch==2.5.1
+transformers==4.46.3
+accelerate==1.1.1
+numpy==1.26.4
+# 그림·표 (집계 스크립트)
+matplotlib==3.9.2
+# 양자화(선택, deepseek-6.7b OOM 대비 — 정밀도 검증 후 사용)
+# bitsandbytes==0.44.1
+
+# 개발용 — 테스트 실행에 필요하다(tests/는 torch 없이도 대부분 돌아간다)
+pytest==8.3.3
