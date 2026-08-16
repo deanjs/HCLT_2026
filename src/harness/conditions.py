@@ -173,8 +173,8 @@ class Intervention:
             return
         if self.layers is None:
             raise ValueError(f"kind={self.kind.value}에는 layers가 필요하다")
-        if isinstance(self.layers, str) and self.layers != "sweep":
-            raise ValueError('layers 문자열은 "sweep"만 허용한다')
+        if isinstance(self.layers, str) and self.layers not in ("sweep", "all"):
+            raise ValueError('layers 문자열은 "sweep"(전 층 순회) 또는 "all"(전 층 동시)만 허용한다')
         if self.kind is InterventionKind.ATTENTION_AMPLIFY:
             if self.amplify is None:
                 raise ValueError("ATTENTION_AMPLIFY에는 amplify(목표 비중 ψ_target)가 필요하다")
