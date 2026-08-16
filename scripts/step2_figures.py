@@ -20,6 +20,10 @@
 무엇을 그리나 (모델마다 4장, 단 폭 3.3in)
 ------------------------------------------
     spans_<모델>       토큰당 어텐션 — **구간 5종 전부** (프롬프트의 어디를 보나)
+                       ⚠️ 지침 표기어 두 선은 **초판 키**다. 요구 표기어는 규칙문+후보열거
+                          **2회**, 반대 표기어는 후보열거 **1회** 등장한다. 토큰당 정규화는
+                          토큰 수 차이만 상쇄할 뿐 **역할 혼합은 못 고친다** → 참고선으로만 본다.
+                          역할 분리(instr_rule_word)는 step4에만 있다.
     attention_<모델>   토큰당 어텐션 — 코드 camel / snake / 지침(참고)
     av_<모델>          토큰당 Σa‖v‖ (기여 상한)    camel / snake
     vnorm_<모델>       토큰당 ‖v‖ (내용 크기)      camel / snake
@@ -71,8 +75,8 @@ SPANS = (
     ("code_camel",        C_CAMEL,     "-",  "code: camel names"),
     ("code_snake",        C_SNAKE,     "-",  "code: snake names"),
     ("instruction",       "0.35",      ":",  "instruction (whole)"),
-    ("instr_target_word", "tab:green", "--", "instr: required word"),
-    ("instr_viol_word",   "tab:purple", "--", "instr: opposite word"),
+    ("instr_target_word", "tab:green", "--", "instr: camelCase (rule+list)"),
+    ("instr_viol_word",   "tab:purple", "--", "instr: snake_case (list only)"),
 )
 
 
