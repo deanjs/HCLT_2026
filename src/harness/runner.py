@@ -22,9 +22,11 @@ import re
 from .naming import classify_name, first_function_name
 from .prompt import (
     _STYLE,
+    _lang,
     build_instruction_text,
     build_preceding_code,
     first_user_message,
+    instruction_notation_spans,
     next_user_message,
     notation_word,
     preceding_specs,
@@ -75,6 +77,7 @@ def run(
     mode: str = "generate",
     generate_fn: Optional[GenerateFn] = None,
     max_new_tokens: int = 256,
+    max_turns: Optional[int] = None,
 ) -> RunOutput:
     """조건 하나를 실행한다.
 
@@ -100,7 +103,7 @@ def run(
     if condition.intervention.kind is not InterventionKind.NONE:
         # 개입 경로(step C): KV 치환으로 준수 선호도 회복 측정
         return _run_intervention(condition, handle)
-    return _run_generation(condition, handle, generate_fn, max_new_tokens)
+    return _run_generation(condition, handle, generate_fn, max_new_tokens, max_turns)
 
 
 def _run_intervention(condition: Condition, handle: Optional[ModelHandle]) -> RunOutput:
@@ -461,12 +464,14 @@ def _run_observation(condition: Condition, handle: Optional[ModelHandle]) -> Run
     ]
 
     # 지침 안의 표기 지시어 토큰을 통째 지침과 별도로 관측한다("camelCase 써라"의 그 단어).
-    # target = 지침이 요구하는 표기(지시어), viol = 반대 표기.
+    # target/viol = 초판 방식(규칙문+후보열거 합침, 요구어는 2회 등장해 부풀려짐 → 참고용).
+    # instr_rule_word / instr_cand_* = 규칙문(진짜 지시)과 후보열거(대칭 나열)를 분리한 공정 비교용.
     ins = condition.instruction
-    notation_spans = {
+    notation_spans: dict[str, object] = {
         "instr_target_word": _STYLE[ins.target_notation],
         "instr_viol_word": _STYLE[ins.violation_notation],
     }
+    notation_spans.update(instruction_notation_spans(condition))
 
     obs = handle.observe_generation_query(
         messages, groups=groups, instruction_text=instruction_text,
@@ -507,8 +512,13 @@ def _run_generation(
     handle: Optional[ModelHandle],
     generate_fn: Optional[GenerateFn],
     max_new_tokens: int,
+    max_turns: Optional[int] = None,
 ) -> RunOutput:
-    """생성 경로 — 선행 12 + 생성 3을 순차 생성하고 표기를 측정한다(step A)."""
+    """생성 경로 — 선행 12 + 순차 생성을 하고 표기를 측정한다(step A / step1).
+
+    max_turns: 생성 턴 수 상한. None=과제 전부(자기증폭까지). step1 절벽은 1턴이면
+    충분(첫 함수 준수율만)해 GPU를 아낀다. 첫 턴은 언제나 준수율(절벽)의 근거다.
+    """
     if generate_fn is None:
         if handle is None:
             raise ValueError("생성에는 handle 또는 generate_fn 중 하나가 필요하다")
@@ -517,8 +527,8 @@ def _run_generation(
         )
 
     # system(지침) + 순차 3턴. 모델의 이전 답이 히스토리에 쌓여 자기증폭이 누적된다.
-    # 코드 언어(합성=python, 실코드=repo_lang) → 이름 추출기 선택
-    lang = condition.preceding.repo_lang or "python"
+    # 코드 언어(합성=preceding.lang, 실코드=repo_lang) → 이름 추출기 선택
+    lang = _lang(condition)
 
     messages: list[dict[str, str]] = [
         {"role": "system", "content": build_instruction_text(condition)}
@@ -526,7 +536,8 @@ def _run_generation(
     notations: list[str] = []
     names: list[Optional[str]] = []
     texts: list[str] = []
-    for turn in range(len(GENERATION_TASKS)):
+    n_turns = len(GENERATION_TASKS) if max_turns is None else min(max_turns, len(GENERATION_TASKS))
+    for turn in range(n_turns):
         user = first_user_message(condition) if turn == 0 else next_user_message(turn)
         messages.append({"role": "user", "content": user})
         text = generate_fn(messages)

@@ -84,6 +84,7 @@ class PrecedingCode:
     repo_lang: Optional[str] = None  # source=REPO일 때 언어(python/javascript)
     repo_file: Optional[str] = None  # source=REPO일 때 data/repo_files/ 하위 상대경로
     pool_block: int = 0              # POOL 전용 이름 블록 인덱스(§3 500 커버리지)
+    lang: Optional[str] = None       # 합성 코드 렌더/파싱 언어(python/javascript). step1 언어 다양성용.
 
     def __post_init__(self) -> None:
         if self.n_functions <= 0:
@@ -94,6 +95,8 @@ class PrecedingCode:
             raise ValueError(
                 f"n_compliant는 0..{self.n_functions} 범위여야 한다 (받음: {self.n_compliant})"
             )
+        if self.lang is not None and self.lang not in ("python", "javascript", "js"):
+            raise ValueError("lang은 python/javascript만 허용한다")
         if self.source is Source.REPO:
             # 실코드는 관습이 고정되어 n_compliant/composition을 쓰지 않는다.
             if not self.repo_lang:
@@ -272,6 +275,8 @@ class Condition:
             pre = f"pre-c{p.n_compliant}of{p.n_functions}-{p.composition.value}-syn"
             if p.composition is Composition.POOL:
                 pre += f"-b{p.pool_block}"   # 블록별 결과 파일 분리(§6)
+            if p.lang and p.lang != "python":
+                pre += f"-{_slugify(p.lang)}"   # 언어(js) 결과 파일 분리 (python은 생략)
         ins = (f"ins-{self.instruction.form.value[:3]}-"
                f"{self.instruction.target_notation.value}-{self.instruction.strength.value[:1]}")
         iv = self.intervention

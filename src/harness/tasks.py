@@ -28,10 +28,20 @@ class TaskSpec:
     def name(self, notation: Notation, idx: Optional[int] = None) -> str:
         return render_name(self.words, notation, idx)
 
-    def render(self, notation: Notation, idx: Optional[int] = None) -> str:
-        """완성된 def 블록 문자열."""
+    def render(self, notation: Notation, idx: Optional[int] = None,
+               lang: str = "python") -> str:
+        """완성된 함수 정의 문자열. lang=python이면 def 블록, javascript면 function 블록.
+
+        이름·본문은 언어 무관(같은 이름, 같은 `return value`). 껍데기만 언어별로 바꿔
+        step1 언어 다양성을 만든다(§3). 본문은 두 언어 모두에서 유효한 표현이어야 한다
+        (POOL/CLONE의 `return value`·`return value * factor`는 유효).
+        """
         sig = ", ".join(self.params)
-        head = f"def {self.name(notation, idx)}({sig}):"
+        nm = self.name(notation, idx)
+        if lang in ("js", "javascript"):
+            body = "\n".join(f"  {ln};" for ln in self.body)
+            return f"function {nm}({sig}) {{\n{body}\n}}"
+        head = f"def {nm}({sig}):"
         return "\n".join([head] + [f"    {ln}" for ln in self.body])
 
 

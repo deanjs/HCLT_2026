@@ -30,9 +30,14 @@ _LANG_LABEL = {"python": "Python", "javascript": "JavaScript", "js": "JavaScript
 
 
 def _lang(condition: Condition) -> str:
-    """이 조건의 코드 언어. 합성은 python, 실코드는 repo_lang."""
+    """이 조건의 코드 언어. 실코드는 repo_lang, 합성은 preceding.lang(없으면 python).
+
+    step1 언어 다양성(파이썬+JS)에서 합성 코드도 언어를 가질 수 있다(§3).
+    """
     p = condition.preceding
-    return p.repo_lang if p.source is Source.REPO else "python"
+    if p.source is Source.REPO:
+        return p.repo_lang
+    return p.lang or "python"
 
 
 def _load_repo_file(repo_file: str) -> str:
@@ -57,6 +62,55 @@ def build_instruction_text(condition: Condition) -> str:
     closed = f"Every function name uses one of two styles only: {c0} or {c1}."
     lang = _LANG_LABEL.get(_lang(condition), "Python")
     return f"You are helping extend an existing {lang} module.\n" + rule + "\n" + closed
+
+
+# 후보열거 문장의 고정 앵커(build_instruction_text의 closed 문장). 이 앞=규칙문, 뒤=후보열거.
+_CANDIDATE_ANCHOR = "one of two styles only:"
+
+
+def instruction_notation_spans(condition: Condition) -> dict[str, list[tuple[int, int]]]:
+    """지침 문장 안 표기어(camelCase/snake_case)를 **역할별로 분리**해 위치를 돌려준다.
+
+    지침은 표기어를 두 곳에서 언급한다:
+      · 규칙문   : "...write function names in camelCase." — 실제 지시(요구/금지) **1개**
+      · 후보열거 : "...one of two styles only: camelCase or snake_case." — 대칭 나열(**둘 다 1개씩**)
+
+    그래서 요구 표기어는 규칙문+후보열거로 **2회**, 반대 표기어는 후보열거로 **1회** 나온다.
+    그냥 합쳐 재면(step4 초판) 요구어가 "많이 나와서" 부풀려져 불공정하다. 이 함수가 규칙문
+    지시어와 후보열거를 나눠, 공정한 비교(규칙문 지시어 vs 코드이름, 후보 camel vs snake)를 가능케 한다.
+
+    반환(키 → 문자 구간 목록, **지침 문장 내부 offset 기준**. model.py가 프롬프트 전체 기준으로 재기준):
+      instr_rule_word  : 규칙문의 지시어(요구 또는 금지 표기어) — "지침을 보는가"의 핵심 신호
+      instr_cand_camel : 후보열거의 camelCase
+      instr_cand_snake : 후보열거의 snake_case
+    """
+    text = build_instruction_text(condition)
+    camel, snake = _STYLE[Notation.CAMEL], _STYLE[Notation.SNAKE]
+    ci = text.find(_CANDIDATE_ANCHOR)   # 후보열거 시작(그 앞은 규칙문). 못 찾으면 -1.
+
+    def occ(word: str) -> list[tuple[int, int]]:
+        out: list[tuple[int, int]] = []
+        s = 0
+        while True:
+            i = text.find(word, s)
+            if i < 0:
+                break
+            out.append((i, i + len(word)))
+            s = i + len(word)
+        return out
+
+    rule_word: list[tuple[int, int]] = []
+    cand_camel: list[tuple[int, int]] = []
+    cand_snake: list[tuple[int, int]] = []
+    for a, b in occ(camel):
+        (cand_camel if ci >= 0 and a >= ci else rule_word).append((a, b))
+    for a, b in occ(snake):
+        (cand_snake if ci >= 0 and a >= ci else rule_word).append((a, b))
+    return {
+        "instr_rule_word": rule_word,
+        "instr_cand_camel": cand_camel,
+        "instr_cand_snake": cand_snake,
+    }
 
 
 def _pool_indices(condition: Condition) -> list[int]:
@@ -89,20 +143,21 @@ def build_preceding_code(condition: Condition) -> str:
     violation = condition.instruction.violation_notation
     notations = [target] * p.n_compliant + [violation] * (p.n_functions - p.n_compliant)
     random.Random(condition.seed).shuffle(notations)
+    lang = _lang(condition)   # 합성 코드 렌더 언어(python/javascript) — step1 언어 다양성
 
     if p.composition is Composition.CLONE:
         # 같은 과제를 인덱스만 바꿔 12복제. 표기는 notations[i].
-        funcs = [CLONE_TASK.render(nt, idx=i + 1) for i, nt in enumerate(notations)]
+        funcs = [CLONE_TASK.render(nt, idx=i + 1, lang=lang) for i, nt in enumerate(notations)]
     elif p.composition is Composition.DISTINCT:
         # 서로 다른 과제 12개(고정 풀 앞에서부터). 표기는 notations[i], 인덱스 없음.
         if p.n_functions > len(DISTINCT_TASKS):
             raise ValueError(
                 f"distinct 과제 풀({len(DISTINCT_TASKS)})이 n_functions({p.n_functions})보다 작다"
             )
-        funcs = [DISTINCT_TASKS[i].render(nt) for i, nt in enumerate(notations)]
+        funcs = [DISTINCT_TASKS[i].render(nt, lang=lang) for i, nt in enumerate(notations)]
     else:  # POOL — stepB 균형 관측: 이름 풀을 블록으로 덮는다(전체 504). seed는 표기·위치 변주.
         idxs = _pool_indices(condition)
-        funcs = [NAME_PAIR_POOL[j].render(nt) for j, nt in zip(idxs, notations)]
+        funcs = [NAME_PAIR_POOL[j].render(nt, lang=lang) for j, nt in zip(idxs, notations)]
     return "\n\n".join(funcs)
 
 

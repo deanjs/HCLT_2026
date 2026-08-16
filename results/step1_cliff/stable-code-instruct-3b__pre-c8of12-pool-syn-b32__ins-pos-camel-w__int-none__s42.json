@@ -1,0 +1,69 @@
+{
+  "step": "step1_cliff",
+  "rq": "RQ1",
+  "prediction": null,
+  "created_at": "2026-08-15T22:07:05.746698+00:00",
+  "condition": {
+    "model": {
+      "name": "stabilityai/stable-code-instruct-3b",
+      "family": "stability",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 8,
+      "n_functions": 12,
+      "composition": "pool",
+      "source": "synthetic",
+      "repo_lang": null,
+      "repo_file": null,
+      "pool_block": 32,
+      "lang": null
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "camel",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "none",
+      "layers": null,
+      "donor": null,
+      "amplify": null,
+      "target": "code"
+    },
+    "seed": 42,
+    "task_ids": [],
+    "tag": null,
+    "token_unit": "all"
+  },
+  "metrics": {
+    "compliance_rate": 0.0,
+    "compliance_preference": null,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {},
+    "extra": {
+      "turn_notations": [
+        "snake"
+      ],
+      "turn_names": [
+        "remove_duplicates"
+      ],
+      "turn_texts": [
+        "You can use a combination of list comprehension and the `in` keyword to achieve this. Here's how you can do it in Python:\n\n```python\ndef remove_duplicates(lst):\n    return [x for i, x in enumerate(lst) if x not in lst[:i]]\n```\n\nThis function works by iterating over the list and adding each item to the new list only if it's not already in the list that comes before it."
+      ],
+      "target": "camel",
+      "first_compliant": false,
+      "first_violated": true,
+      "subsequent_violation_rate": null
+    }
+  },
+  "meta": {}
+}
