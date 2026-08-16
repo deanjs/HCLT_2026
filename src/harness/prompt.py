@@ -16,6 +16,12 @@ from .tasks import CLONE_TASK, DISTINCT_TASKS, GENERATION_TASKS, NAME_PAIR_POOL,
 _STYLE = {Notation.CAMEL: "camelCase", Notation.SNAKE: "snake_case"}
 
 
+# 지침 문장 안의 **표기와 무관한 단어**. step5 음성 통제(unrelated_word)가 이 단어의 KV를
+# 덮어넣는다 — "표기 정보가 아닌 것을 덮으면 행동이 안 바뀐다"를 보이기 위한 것.
+# build_instruction_text의 rule 문장("In this project ...")에 형식·어조와 무관하게 **한 번만** 나온다.
+NEUTRAL_INSTRUCTION_WORD = "project"
+
+
 def notation_word(notation: Notation) -> str:
     """지침 문장에 등장하는 표기 지시어 단어('camelCase'/'snake_case').
 

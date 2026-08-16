@@ -28,6 +28,7 @@ from .prompt import (
     build_preceding_code,
     first_user_message,
     instruction_notation_spans,
+    NEUTRAL_INSTRUCTION_WORD,
     next_user_message,
     notation_word,
     preceding_specs,
@@ -97,9 +98,13 @@ def run(
     if mode == "vcosine":
         # 관측 측(step 1): 같은 이름 camel/snake v의 층별 코사인 궤적
         return _run_cosine_sweep(condition, handle)
+    if mode == "kv_diagnose":
+        # 진단: 평균 덮어쓰기가 Key를 Value보다 불리하게 망가뜨리는가(점수 안 매김, 가볍다)
+        return _run_kv_diagnostics(condition, handle)
     if mode != "generate":
         raise ValueError(
-            f"알 수 없는 mode: {mode!r} (generate|observe|intervene_generate|vcosine)"
+            f"알 수 없는 mode: {mode!r} "
+            "(generate|observe|intervene_generate|vcosine|kv_diagnose)"
         )
     if condition.intervention.kind is not InterventionKind.NONE:
         # 개입 경로(step C): KV 치환으로 준수 선호도 회복 측정
@@ -152,6 +157,53 @@ def _run_intervention(condition: Condition, handle: Optional[ModelHandle]) -> Ru
             "recovery": out["recovery"],
             "layer": out["layer"],
             "kind": out["kind"],
+            "n_substituted_tokens": out["n_substituted_tokens"],
+            "skipped_names": out["skipped_names"],
+            "viol_names": setup["viol_names"],
+            "donor_names": setup["donor_names"],
+        },
+    )
+    return RunOutput(condition=condition, metrics=metrics)
+
+
+def _run_kv_diagnostics(condition: Condition, handle: Optional[ModelHandle]) -> RunOutput:
+    """진단 경로 — 평균 덮어쓰기가 Key를 Value보다 불리하게 만드는지 층별로 잰다.
+
+    개입 경로(`_run_intervention_sweep`)와 **완전히 같은 입력**을 쓴다. 다른 점은 점수를
+    매기지 않고 공여 값의 성질만 본다는 것뿐이라, 전 층 스윕보다 훨씬 가볍다.
+    개입 대상이 'instruction'이면 지침 지시어를, 아니면 선행 코드 이름을 본다.
+    """
+    if handle is None:
+        raise ValueError("진단에는 handle이 필요하다 (모델 내부 접근)")
+
+    instr_target = condition.intervention.target == "instruction"
+    setup = _preference_setup_instruction(condition) if instr_target else _preference_setup(condition)
+    span_kind = "literal" if instr_target else "def_name"
+
+    out = handle.kv_substitution_diagnostics(
+        setup["viol_messages"], setup["comp_messages"],
+        viol_names=setup["viol_names"], donor_names=setup["donor_names"],
+        candidate_compliant=setup["candidate_compliant"],
+        candidate_violation=setup["candidate_violation"],
+        donor_messages=setup["donor_messages"],
+        token_unit=condition.token_unit, span_kind=span_kind,
+    )
+
+    metrics = Metrics(
+        per_layer={int(L): v for L, v in out["per_layer"].items()},
+        extra={
+            "mode": "kv_diagnose",
+            "intervention_target": condition.intervention.target,
+            "donor": setup["donor_kind"],
+            "target": setup["target"].value,
+            "S_clean": out["S_clean"],
+            "S_base": out["S_base"],
+            "gap": effect_size(out["S_clean"], out["S_base"]),
+            "undecidable": is_undecidable(out["S_clean"], out["S_base"]),
+            "position_offsets": out["position_offsets"],
+            "position_offset_abs_mean": out["position_offset_abs_mean"],
+            "donor_piece_counts": out["donor_piece_counts"],
+            "target_piece_counts": out["target_piece_counts"],
             "n_substituted_tokens": out["n_substituted_tokens"],
             "skipped_names": out["skipped_names"],
             "viol_names": setup["viol_names"],
@@ -243,20 +295,45 @@ def _preference_setup_instruction(condition: Condition) -> dict:
 
     # 치환 대상 = 각 지침 rule 문장의 지시어 단어(literal 첫 등장).
     viol_names = [notation_word(condition.instruction.token_notation)]  # "camelCase"
-    donor_names = [notation_word(opp_instruction.token_notation)]       # "snake_case"
+
+    # 공여(무엇을 덮어넣을 것인가) — 통제 조건을 여기서 표현한다.
+    #   opposite       : 반대 지침의 지시어      → 처치. 전이가 커야 정상
+    #   self           : **같은 지침의 같은 지시어** → 자기 통제.
+    #                    정보는 하나도 새로 들어가지 않고 "덮어쓰는 행위"만 남는다. 전이 ≈ 0이어야 정상
+    #   unrelated_word : 같은 지침의 무관한 단어("project") → 음성 통제.
+    #                    표기와 무관한 내용을 덮는다. 전이 ≈ 0이어야 정상
+    # step3(코드)에서 이 '덮어쓰기 자체의 교란'이 회복률의 절반 이상을 차지했다.
+    # 통제 없이 잰 전이율은 그 교란을 포함한 **상한**이다.
+    donor_kind = condition.intervention.donor or "opposite"
+    if donor_kind == "opposite":
+        donor_messages = None                          # donor_cache = comp_cache(반대 지침)
+        donor_names = [notation_word(opp_instruction.token_notation)]
+    elif donor_kind == "self":
+        donor_messages = msgs(base_system)             # 같은 지침을 한 번 더 forward
+        donor_names = [notation_word(condition.instruction.token_notation)]
+    elif donor_kind == "unrelated_word":
+        donor_messages = msgs(base_system)
+        donor_names = [NEUTRAL_INSTRUCTION_WORD]
+    else:
+        raise ValueError(
+            f"지침 개입의 공여 종류가 올바르지 않다: {donor_kind!r} "
+            "(opposite | self | unrelated_word)"
+        )
 
     gt = GENERATION_TASKS[0]
     cand_compliant, cand_violation = gt.name(target), gt.name(violation)
 
     return {
         "viol_messages": msgs(base_system),   # base = 조건 지침
-        "comp_messages": msgs(opp_system),    # 천장 기준 = 반대 지침 (donor로도 재사용)
+        "comp_messages": msgs(opp_system),    # 천장 기준 = 반대 지침 (opposite면 donor로도 재사용)
         "viol_names": viol_names,
         "donor_names": donor_names,
         "candidate_compliant": cand_compliant,
         "candidate_violation": cand_violation,
-        "donor_messages": None,               # donor_cache = comp_cache(반대 지침)
-        "donor_kind": "opposite_instruction",
+        "donor_messages": donor_messages,
+        "donor_kind": (
+            "opposite_instruction" if donor_kind == "opposite" else f"control_{donor_kind}"
+        ),
         "target": target,
     }
 

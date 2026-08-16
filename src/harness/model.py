@@ -508,6 +508,108 @@ class ModelHandle:
             "skipped_names": ctx["skipped"],
         }
 
+    def kv_substitution_diagnostics(
+        self,
+        viol_messages: list[dict[str, str]],
+        comp_messages: list[dict[str, str]],
+        *,
+        viol_names: list[str],
+        donor_names: list[str],
+        candidate_compliant: str,
+        candidate_violation: str,
+        donor_messages: Optional[list[dict[str, str]]] = None,
+        forced_prefix: str = "def ",
+        token_unit: str = "mean",
+        span_kind: str = "def_name",
+    ) -> dict[str, Any]:
+        """평균 덮어쓰기가 **Key를 Value보다 불리하게 망가뜨리는가**를 진단한다.
+
+        왜 필요한가
+        -----------
+        캐시에 저장된 Key에는 **그 토큰이 있던 위치의 회전(RoPE)이 이미 적용**돼 있다.
+        Value에는 위치 정보가 없다. 그런데 우리는 서로 다른 위치의 조각을 **평균**내어 덮는다.
+        회전 방향이 엇갈린 벡터를 평균하면 서로 지워져 **원래보다 짧은 벡터**가 된다.
+        그러면 "Key를 바꿔도 안 돌아온다"가 어텐션 경로의 성질인지, 우리가 값을 망가뜨린 탓인지
+        구분할 수 없다 — 편향의 방향이 우리 결론과 같으므로 반드시 확인해야 한다.
+
+        무엇을 재나 (층마다)
+        --------------------
+        ``줄어듦 = ‖조각들의 평균‖ / 조각 노름들의 평균``
+          · 1에 가까움 → 조각들이 같은 방향을 봤다. 평균 내도 안 줄었다 = 문제 없음
+          · 많이 작음   → 서로 지워졌다 = 쪼그라든 값을 넣고 있었다
+
+        **Key만 재면 판단할 수 없다.** 서로 다른 토큰을 평균 내면 회전이 없어도 조금은 줄어들기
+        때문이다. 그래서 **Value의 같은 값을 기준선으로 함께 잰다.** 두 값이 비슷하면 회전 탓의
+        추가 손해가 없다는 뜻이고, Key 쪽만 크게 작으면 RoPE 탓이다.
+
+        함께 남기는 것: 조각들 사이의 평균 코사인(방향이 얼마나 흩어졌나)과
+        **덮을 자리와 공여 자리의 위치 차이**(위치가 어긋날수록 회전 위상도 어긋난다).
+
+        점수를 매기지 않으므로 층 스윕보다 훨씬 가볍다 — 프롬프트 forward 몇 번이면 끝난다.
+        """
+        import torch
+
+        if token_unit != "mean":
+            raise ValueError(
+                "이 진단은 평균 덮어쓰기(mean) 규격을 대상으로 한다 "
+                f"(받음: {token_unit!r})"
+            )
+
+        ctx = self._preference_context(
+            viol_messages, comp_messages,
+            viol_names=viol_names, donor_names=donor_names,
+            candidate_compliant=candidate_compliant, candidate_violation=candidate_violation,
+            donor_messages=donor_messages, forced_prefix=forced_prefix, token_unit=token_unit,
+            span_kind=span_kind,
+        )
+        groups = ctx["groups"]
+
+        def shrink_and_spread(t: Any) -> tuple[float, float]:
+            """t: [B, n_kv, n, d] → (줄어듦 비율, 조각들 사이 평균 코사인)."""
+            mean_norm = t.mean(dim=2).norm(dim=-1)              # ‖평균‖        [B, n_kv]
+            norm_mean = t.norm(dim=-1).mean(dim=2)              # 노름의 평균   [B, n_kv]
+            ratio = float((mean_norm / norm_mean.clamp_min(1e-9)).mean())
+            n = t.shape[2]
+            if n < 2:
+                return ratio, 1.0                                # 조각이 하나면 흩어질 것이 없다
+            u = t / t.norm(dim=-1, keepdim=True).clamp_min(1e-9)
+            gram = torch.einsum("bknd,bkmd->bknm", u, u)         # 조각쌍 코사인
+            off = (gram.sum(dim=(-1, -2)) - n) / (n * (n - 1))   # 대각선 제외 평균
+            return ratio, float(off.mean())
+
+        per_layer: dict[int, dict[str, float]] = {}
+        with torch.no_grad():
+            for layer in range(self.num_layers):
+                dk, dv = _cache_kv(ctx["donor_cache"], layer)
+                ks, kc, vs, vc = [], [], [], []
+                for _vps, dps in groups:
+                    r, c = shrink_and_spread(dk[:, :, dps, :]); ks.append(r); kc.append(c)
+                    r, c = shrink_and_spread(dv[:, :, dps, :]); vs.append(r); vc.append(c)
+                k_shrink = sum(ks) / len(ks)
+                v_shrink = sum(vs) / len(vs)
+                per_layer[layer] = {
+                    "key_shrink": k_shrink,             # Key 줄어듦 (1이면 손해 없음)
+                    "value_shrink": v_shrink,           # Value 줄어듦 (회전 없는 기준선)
+                    "key_minus_value": k_shrink - v_shrink,   # 음수가 크면 Key만 손해
+                    "key_piece_cosine": sum(kc) / len(kc),
+                    "value_piece_cosine": sum(vc) / len(vc),
+                }
+
+        # 덮을 자리와 공여 자리의 위치 차이 — 위치가 어긋나면 회전 위상도 어긋난다.
+        offsets = [ (sum(vps) / len(vps)) - (sum(dps) / len(dps)) for vps, dps in groups ]
+        return {
+            "per_layer": per_layer,
+            "S_clean": ctx["s_clean"],
+            "S_base": ctx["s_base"],
+            "n_substituted_tokens": ctx["n_substituted"],
+            "skipped_names": ctx["skipped"],
+            "position_offsets": offsets,
+            "position_offset_abs_mean": sum(abs(o) for o in offsets) / len(offsets),
+            "donor_piece_counts": [len(dps) for _vps, dps in groups],
+            "target_piece_counts": [len(vps) for vps, _dps in groups],
+            "num_layers": self.num_layers,
+        }
+
     def name_v_cosine_sweep(
         self,
         camel_messages: list[dict[str, str]],
