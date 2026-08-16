@@ -1,7 +1,8 @@
 # step2 결과 — 코드 신호의 위치와 층 (RQ2 관측)
 
 > **스텝:** step2 · **RQ:** RQ2 (코드의 표기 신호가 어디에, 어느 층에 있는가 — 관측)
-> **결과:** `results/step2_code-observe/` 168개 · **재현:** `python scripts/observe_per_token.py results/step2_code-observe`
+> **결과:** `results/step2_code-observe/` 168개
+> **재현:** `python scripts/observe_per_token.py results/step2_code-observe` (표) · `python scripts/step2_figures.py` (그림)
 
 ---
 
@@ -142,6 +143,23 @@ def split_config(value):
 | ![qwen](figures/vnorm_qwen.png) | ![deepseek](figures/vnorm_deepseek.png) |
 | **Llama-3.2-3B (범용)** | **StableCode-3B** |
 | ![llama](figures/vnorm_llama.png) | ![stable](figures/vnorm_stable.png) |
+
+### 정규화가 어디서 결론을 바꾸나
+
+`gap_*` 그림의 **빨강(토큰당)과 회색 점선(합)** 을 비교하면 보인다.
+
+| 모델 | camel 토큰 | snake 토큰 | 비율 | 부호가 갈리는 층 |
+|---|---|---|---|---|
+| Qwen | 12.60 | 12.74 | 1.01 | **0 / 36** |
+| Llama | 12.60 | 12.74 | 1.01 | **0 / 28** |
+| DeepSeek | 16.21 | 22.45 | 1.38 | **7 / 32** (L2~6, 19, 23) |
+| StableCode | 14.21 | 20.40 | 1.44 | **9 / 32** (L0, 2, 3, 6~8, 20, 24, 27) |
+
+밑줄 `_`이 독립 토큰으로 떨어지는 DeepSeek·StableCode는 snake 구간이 40%가량 길다.
+그 두 모델의 **초반 층에서는 합이 "snake를 더 본다"고 말하지만 토큰당은 반대**다.
+
+**다만 봉우리 층은 네 모델 모두 옮겨가지 않는다**(Qwen L25 · DeepSeek L0 · Llama L12 ·
+StableCode L15). 정성 결론은 유지되고, 바뀌는 것은 **초반 층의 부호와 격차의 크기**다.
 
 **snake 구간 − camel 구간 격차가 가장 큰 층과 그 값**(토큰당 평균)
 
