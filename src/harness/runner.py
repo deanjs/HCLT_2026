@@ -98,6 +98,9 @@ def run(
     if mode == "vcosine":
         # 관측 측(step 1): 같은 이름 camel/snake v의 층별 코사인 궤적
         return _run_cosine_sweep(condition, handle)
+    if mode == "steer_generate":
+        # 처방을 건 채로 **실제 이름을 생성**해 본다(점수 회복이 진짜인지 눈으로 확인).
+        return _run_steer_generate(condition, handle, max_new_tokens)
     if mode == "steer" or condition.intervention.kind in (InterventionKind.VALUE_ADD,
                                                           InterventionKind.ATTENTION_AMPLIFY):
         # 처방(step6). 개입 종류로도 오지만, **무개입 하한선**은 mode='steer'로 부른다
@@ -109,7 +112,7 @@ def run(
     if mode != "generate":
         raise ValueError(
             f"알 수 없는 mode: {mode!r} "
-            "(generate|observe|intervene_generate|vcosine|kv_diagnose|steer)"
+            "(generate|observe|intervene_generate|vcosine|kv_diagnose|steer|steer_generate)"
         )
     if condition.intervention.kind is not InterventionKind.NONE:
         # 개입 경로(step C): KV 치환으로 준수 선호도 회복 측정
@@ -311,11 +314,16 @@ def _run_steer(condition: Condition, handle: Optional[ModelHandle]) -> RunOutput
                 f"값 조향에는 층을 하나만 준다 (받음: {layers}). 층마다 조건을 따로 만든다."
             )
         layer = layers[0]
-        key = (condition.model.name, layer, iv.steer_source)
+        # 방향을 뽑는 층과 주입하는 층은 다를 수 있다.
+        #   같으면  → "이 층에 밀면 되나"
+        #   다르면  → "방향 자체가 층 특이적인가"(맞는 층 방향을 엉뚱한 층에 주입)
+        src_layer = iv.steer_layer if iv.steer_layer is not None else layer
+        key = (condition.model.name, src_layer, iv.steer_source)
         if key not in _STEER_VEC:
-            _STEER_VEC[key] = steer_mod.build_steer_vector(handle, _steer_samples(condition), layer)
+            _STEER_VEC[key] = steer_mod.build_steer_vector(handle, _steer_samples(condition), src_layer)
         vec, vec_meta = _STEER_VEC[key]
         detail["steer_vector"] = vec_meta       # 무엇으로 만든 방향인지 결과에 남긴다
+        detail["steer_from_layer"] = src_layer
         res = steer_mod.steer_preference(handle, setup["viol_messages"], setup["comp_messages"],
                                          kind="value_add", layer=layer,
                                          strength=iv.strength, steer_vec=vec, **common)
@@ -337,6 +345,7 @@ def _run_steer(condition: Condition, handle: Optional[ModelHandle]) -> RunOutput
         "strength": iv.strength,
         "psi_target": iv.amplify,
         "steer_source": iv.steer_source,
+        "steer_layer": iv.steer_layer,
         "n_compliant": condition.preceding.n_compliant,
         "target": condition.instruction.target_notation.value,
         "tag": condition.tag,
@@ -345,6 +354,67 @@ def _run_steer(condition: Condition, handle: Optional[ModelHandle]) -> RunOutput
     extra.update(detail)
     return RunOutput(condition=condition,
                      metrics=Metrics(compliance_preference=res["S_int"], extra=extra))
+
+
+def _run_steer_generate(condition: Condition, handle: Optional[ModelHandle],
+                        max_new_tokens: int) -> RunOutput:
+    """처방을 건 채로 실제 이름을 생성한다 — 점수만 오르고 **이름이 깨지지 않았는지** 확인.
+
+    선호 점수는 위가 막혀 있지 않아 세게 밀수록 계속 오른다. 그래서 점수만으로는
+    "되살아났다"고 말할 수 없다. 실제로 나온 이름의 표기와 건전성을 함께 본다.
+    """
+    if handle is None:
+        raise ValueError("생성 검증에는 handle이 필요하다")
+    from . import steer as steer_mod
+
+    iv = condition.intervention
+    setup = _preference_setup(condition)
+    kwargs: dict = {}
+    if iv.kind is InterventionKind.VALUE_ADD:
+        layers = list(iv.layers)
+        if len(layers) != 1:
+            raise ValueError(f"값 조향에는 층을 하나만 준다 (받음: {layers})")
+        layer = layers[0]
+        src_layer = iv.steer_layer if iv.steer_layer is not None else layer
+        key = (condition.model.name, src_layer, iv.steer_source)
+        if key not in _STEER_VEC:
+            _STEER_VEC[key] = steer_mod.build_steer_vector(handle, _steer_samples(condition), src_layer)
+        kwargs = dict(kind="value_add", layer=layer, strength=iv.strength,
+                      steer_vec=_STEER_VEC[key][0])
+    elif iv.kind is InterventionKind.ATTENTION_AMPLIFY:
+        kwargs = dict(kind="spotlight", psi_target=iv.amplify,
+                      span_positions=_spotlight_span_positions(handle, setup["viol_messages"], condition))
+    elif iv.kind is InterventionKind.NONE:
+        kwargs = dict(kind="none")
+    else:
+        raise ValueError(f"생성 검증이 지원하지 않는 개입: {iv.kind.value}")
+
+    out = steer_mod.steer_generate(handle, setup["viol_messages"],
+                                   max_new_tokens=max_new_tokens, **kwargs)
+    lang = condition.preceding.repo_lang or condition.preceding.lang or "python"
+    name = first_function_name(out["text"], lang)
+    health = steer_mod.name_health(name)
+    target = condition.instruction.target_notation.value
+    notation = classify_name(name) if name else "other"
+
+    return RunOutput(condition=condition, metrics=Metrics(
+        compliance_rate=1.0 if notation == target else 0.0,
+        extra={
+            "mode": "steer_generate",
+            "method": iv.kind.value,
+            "layer": (list(iv.layers)[0] if iv.kind is InterventionKind.VALUE_ADD else None),
+            "strength": iv.strength,
+            "psi_target": iv.amplify,
+            "span": iv.span,
+            "target": target,
+            "generated_text": out["text"],
+            "name": name,
+            "notation": notation,
+            "compliant": notation == target,
+            "name_ok": health["ok"],          # 이름이 멀쩡한가
+            "name_reason": health["reason"],  # 안 멀쩡하면 왜
+            "name_length": health.get("length"),
+        }))
 
 
 def _preference_setup(condition: Condition) -> dict:

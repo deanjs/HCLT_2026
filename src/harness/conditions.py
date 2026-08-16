@@ -168,6 +168,9 @@ class Intervention:
     # ── step6 처방 전용 ───────────────────────────────────────────────
     strength: Optional[float] = None      # VALUE_ADD: 잔차에 더할 방향의 배율(세기)
     steer_source: Optional[str] = None    # VALUE_ADD: 방향 출처. "code_contrast"(step3 camel−snake)
+    steer_layer: Optional[int] = None     # VALUE_ADD: **방향을 뽑을 층**. None이면 주입 층과 같다.
+                                          #   다르게 주면 "방향이 층 특이적인가"를 묻는 대조가 된다
+                                          #   (맞는 층에서 뽑은 방향을 엉뚱한 층에 주입).
     span: Optional[str] = None            # ATTENTION_AMPLIFY: 밀어 올릴 구간
                                           #   "rule_word"  = 규칙문 지시어만(step5와 스팬 일치)
                                           #   "instruction"= 지침 문장 전체(원 논문 정의)
@@ -214,8 +217,9 @@ class Intervention:
                 raise ValueError("VALUE_ADD에는 strength(조향 세기)가 필요하다")
             if self.steer_source is None:
                 raise ValueError("VALUE_ADD에는 steer_source(방향 출처)가 필요하다")
-        elif self.strength is not None or self.steer_source is not None:
-            raise ValueError("VALUE_ADD 외에는 strength/steer_source를 두지 않는다")
+        elif (self.strength is not None or self.steer_source is not None
+              or self.steer_layer is not None):
+            raise ValueError("VALUE_ADD 외에는 strength/steer_source/steer_layer를 두지 않는다")
         if self.kind is not InterventionKind.ATTENTION_AMPLIFY and self.span is not None:
             raise ValueError("span은 ATTENTION_AMPLIFY 전용이다")
 
@@ -297,6 +301,7 @@ class Condition:
                        if d["intervention"].get("kinds") else None),
                 strength=d["intervention"].get("strength"),
                 steer_source=d["intervention"].get("steer_source"),
+                steer_layer=d["intervention"].get("steer_layer"),
                 span=d["intervention"].get("span"),
             ),
             seed=d["seed"],
@@ -344,6 +349,8 @@ class Condition:
                 intr += "-str" + f"{iv.strength:g}".replace(".", "p").replace("-", "m")
             if iv.steer_source:
                 intr += f"-{_slugify(iv.steer_source)}"
+            if iv.steer_layer is not None:
+                intr += f"-from{iv.steer_layer}"   # 방향을 뽑은 층이 주입 층과 다를 때
         parts = [m, pre, ins, intr]
         if self.token_unit != "all":          # all은 생략(기존 슬러그 불변), last만 표기
             parts.append(f"tok-{self.token_unit}")

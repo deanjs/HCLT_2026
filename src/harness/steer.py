@@ -327,3 +327,69 @@ def steer_preference(handle, viol_messages, comp_messages, cand_comp, cand_viol,
            "layer": layer, "kind": kind}
     out.update(detail)
     return out
+
+def name_health(name: Optional[str]) -> dict[str, Any]:
+    """생성된 이름이 **멀쩡한가**. 조향을 세게 걸면 점수만 오르고 이름이 깨질 수 있다.
+
+    선호 점수만 보면 "천장의 4배 회복" 같은 값이 나오는데, 실제로는
+    `removeDuplicatesDuplicates` 같은 걸 뱉고 있을 수 있다. 그걸 잡는다.
+
+    반환: ok(전부 통과) + 어디서 걸렸는지.
+    """
+    import re
+    if not name:
+        return {"ok": False, "reason": "이름 없음", "name": None}
+    checks = {
+        "식별자 형식": bool(re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name)),
+        "길이 정상": 2 <= len(name) <= 40,
+        "같은 조각 반복 없음": not _has_repeat(name),
+    }
+    bad = [k for k, v in checks.items() if not v]
+    return {"ok": not bad, "reason": ("" if not bad else ", ".join(bad)),
+            "name": name, "length": len(name)}
+
+
+def _has_repeat(name: str) -> bool:
+    """`removeDuplicatesDuplicates`처럼 같은 조각이 연달아 반복되는가."""
+    import re
+    parts = [w.lower() for w in re.findall(r"[A-Z]?[a-z0-9]+", name)]
+    return any(a == b for a, b in zip(parts, parts[1:]))
+
+
+def steer_generate(handle, messages, *, kind: str, layer: Optional[int] = None,
+                   strength: Optional[float] = None, steer_vec=None,
+                   psi_target: Optional[float] = None,
+                   span_positions: Optional[Sequence[int]] = None,
+                   forced_prefix: str = "def ", max_new_tokens: int = 24) -> dict[str, Any]:
+    """조향을 건 채로 **실제 이름을 생성**한다. 점수 회복이 진짜인지 눈으로 확인하는 용도."""
+    import torch
+    from contextlib import nullcontext
+
+    tok, dev = handle.tokenizer, handle.model.device
+    text = tok.apply_chat_template(messages, tokenize=False,
+                                   add_generation_prompt=True) + forced_prefix
+    ids = tok(text, return_tensors="pt", add_special_tokens=False)["input_ids"].to(dev)
+
+    if kind == "none":
+        make_ctx = nullcontext
+    elif kind == "value_add":
+        mod = decoder_layers(handle.model)[layer]
+        make_ctx = lambda: value_add_hook(mod, steer_vec, strength)      # noqa: E731
+    elif kind == "spotlight":
+        make_ctx = lambda: spotlight_attention(handle.model, span_positions, psi_target)  # noqa: E731
+    else:
+        raise ValueError(f"알 수 없는 개입 종류: {kind!r}")
+
+    gen: list[int] = []
+    with make_ctx(), torch.no_grad():
+        cur = ids
+        past = None
+        for _ in range(max_new_tokens):
+            out = handle.model(cur, past_key_values=past, use_cache=True)
+            past = out.past_key_values
+            nxt = int(out.logits[0, -1].argmax())
+            if nxt == tok.eos_token_id:
+                break
+            gen.append(nxt)
+            cur = torch.tensor([[nxt]], device=dev)
+    return {"text": forced_prefix + tok.decode(gen)}
