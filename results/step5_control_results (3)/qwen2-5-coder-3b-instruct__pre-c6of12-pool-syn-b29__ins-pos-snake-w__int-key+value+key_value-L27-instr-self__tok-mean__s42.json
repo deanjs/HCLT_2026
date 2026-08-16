@@ -1,0 +1,102 @@
+{
+  "step": "step5_instr-cause-control",
+  "rq": "RQ3",
+  "prediction": "통제이므로 전이율이 0 근처여야 정상",
+  "created_at": "2026-08-16T06:05:50.204441+00:00",
+  "condition": {
+    "model": {
+      "name": "Qwen/Qwen2.5-Coder-3B-Instruct",
+      "family": "qwen",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 6,
+      "n_functions": 12,
+      "composition": "pool",
+      "source": "synthetic",
+      "repo_lang": null,
+      "repo_file": null,
+      "pool_block": 29,
+      "lang": null
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "snake",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "key_value",
+      "layers": [
+        27
+      ],
+      "donor": "self",
+      "amplify": null,
+      "kinds": [
+        "key",
+        "value",
+        "key_value"
+      ],
+      "target": "instruction"
+    },
+    "seed": 42,
+    "task_ids": [],
+    "tag": null,
+    "token_unit": "mean"
+  },
+  "metrics": {
+    "compliance_rate": null,
+    "compliance_preference": null,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {
+      "27": {
+        "key__S_int": 3.4375000074505806,
+        "key__recovery": 0.1270902833995026,
+        "value__S_int": 3.656249947845936,
+        "value__recovery": 0.08026755282404727,
+        "key_value__S_int": 3.4374999180436134,
+        "key_value__recovery": 0.1270903025367802
+      }
+    },
+    "extra": {
+      "mode": "intervene_sweep",
+      "intervention_target": "instruction",
+      "donor": "control_self",
+      "target": "snake",
+      "S_clean": -0.640625,
+      "S_base": 4.031249914318323,
+      "gap": 4.671874914318323,
+      "undecidable": false,
+      "undecidable_gap_min": 1.0,
+      "kinds": [
+        "key",
+        "value",
+        "key_value"
+      ],
+      "n_substituted_tokens": 2,
+      "skipped_names": [],
+      "viol_names": [
+        "snake_case"
+      ],
+      "donor_names": [
+        "snake_case"
+      ]
+    }
+  },
+  "meta": {
+    "python": "3.12.13",
+    "git_sha": "ae79a2ac3ea075efbded220eb59a8e03773f02b5",
+    "git_dirty": true,
+    "torch": "2.11.0+cu128",
+    "transformers": "5.13.1",
+    "accelerate": "1.14.0",
+    "gpu": "Tesla T4"
+  }
+}

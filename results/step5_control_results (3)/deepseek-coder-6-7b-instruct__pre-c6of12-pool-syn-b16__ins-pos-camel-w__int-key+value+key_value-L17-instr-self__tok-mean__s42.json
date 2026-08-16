@@ -1,0 +1,102 @@
+{
+  "step": "step5_instr-cause-control",
+  "rq": "RQ3",
+  "prediction": "통제이므로 전이율이 0 근처여야 정상",
+  "created_at": "2026-08-16T06:12:04.627398+00:00",
+  "condition": {
+    "model": {
+      "name": "deepseek-ai/deepseek-coder-6.7b-instruct",
+      "family": "deepseek",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 6,
+      "n_functions": 12,
+      "composition": "pool",
+      "source": "synthetic",
+      "repo_lang": null,
+      "repo_file": null,
+      "pool_block": 16,
+      "lang": null
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "camel",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "key_value",
+      "layers": [
+        17
+      ],
+      "donor": "self",
+      "amplify": null,
+      "kinds": [
+        "key",
+        "value",
+        "key_value"
+      ],
+      "target": "instruction"
+    },
+    "seed": 42,
+    "task_ids": [],
+    "tag": null,
+    "token_unit": "mean"
+  },
+  "metrics": {
+    "compliance_rate": null,
+    "compliance_preference": null,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {
+      "17": {
+        "key__S_int": -0.6903492608398665,
+        "key__recovery": 0.16041033210106187,
+        "value__S_int": -0.36509655803092755,
+        "value__recovery": 0.09634664616901419,
+        "key_value__S_int": -0.6903421269962564,
+        "key_value__recovery": 0.16040892697725329
+      }
+    },
+    "extra": {
+      "mode": "intervene_sweep",
+      "intervention_target": "instruction",
+      "donor": "control_self",
+      "target": "camel",
+      "S_clean": -4.952963950607227,
+      "S_base": 0.12405742393457331,
+      "gap": 5.0770213745418005,
+      "undecidable": false,
+      "undecidable_gap_min": 1.0,
+      "kinds": [
+        "key",
+        "value",
+        "key_value"
+      ],
+      "n_substituted_tokens": 3,
+      "skipped_names": [],
+      "viol_names": [
+        "camelCase"
+      ],
+      "donor_names": [
+        "camelCase"
+      ]
+    }
+  },
+  "meta": {
+    "python": "3.12.13",
+    "git_sha": "ae79a2ac3ea075efbded220eb59a8e03773f02b5",
+    "git_dirty": true,
+    "torch": "2.11.0+cu128",
+    "transformers": "5.13.1",
+    "accelerate": "1.14.0",
+    "gpu": "Tesla T4"
+  }
+}
