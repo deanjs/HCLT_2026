@@ -35,8 +35,13 @@
 
 ### 논문용 그림
 
-![세기 곡선](figures/strength_qwen.png)
-![세기 곡선](figures/strength_deepseek.png)
+**조향 세기별 회복 — 층별 대조 포함**
+
+| Qwen2.5-Coder-3B | DeepSeek-Coder-6.7B |
+|---|---|
+| ![qwen](figures/strength_qwen.png) | ![deepseek](figures/strength_deepseek.png) |
+| **Llama-3.2-3B (범용 — Spotlight도 작동)** | **StableCode-3B** |
+| ![llama](figures/strength_llama.png) | ![stability](figures/strength_stability.png) |
 
 | 방법 | Qwen | DeepSeek | Llama | StableCode |
 |---|---|---|---|---|

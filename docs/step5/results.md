@@ -38,8 +38,13 @@
 
 ## 2. 결과
 
-![방향별](figures/direction_qwen.png)
-![방향별](figures/direction_stability.png)
+**지침 방향별 전이율 — 층별**
+
+| Qwen2.5-Coder-3B | DeepSeek-Coder-6.7B |
+|---|---|
+| ![qwen](figures/direction_qwen.png) | ![deepseek](figures/direction_deepseek.png) |
+| **Llama-3.2-3B (범용, 대부분 판정 불가)** | **StableCode-3B (방향 비대칭 3배)** |
+| ![llama](figures/direction_llama.png) | ![stability](figures/direction_stability.png) |
 
 **봉우리 층, 방식별 — 처치와 통제** (42묶음 × 방향 2 = 168조건, ±95%)
 
