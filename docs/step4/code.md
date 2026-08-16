@@ -60,7 +60,12 @@ return {"instr_rule_word": rule_word,      # 규칙문의 지시어 — "지침�
 | 비교 | 왜 공정한가 |
 |---|---|
 | `instr_rule_word` vs `code_camel` | 지시어 1회 등장 vs 코드 이름들 |
-| `instr_cand_camel` vs `instr_cand_snake` | 둘 다 후보열거에 1회씩 — **완전 대칭** |
+| `instr_cand_camel` vs `instr_cand_snake` | 둘 다 후보열거에 1회씩 — **역할 대칭**(아래 단서) |
+
+> ⚠️ **역할은 대칭이지만 완전 대칭은 아니다.** 실제 토큰 수는 모델마다 다르다 —
+> Qwen·Llama는 2 vs 2로 맞지만 **DeepSeek 3 vs 4, StableCode 2 vs 3**이다.
+> 순서도 항상 `camelCase or snake_case`로 camel이 앞이다. 이 두 구간의 비교는
+> **역할 대칭 통제**로만 쓰고, 남은 차이는 토큰 수로 나눠 본다.
 
 초판 키(`instr_target_word`·`instr_viol_word`)도 **지우지 않고 함께 저장**한다.
 결과는 불변이고(§6), 초판과 개선판을 나란히 볼 수 있어야 한다.
@@ -172,9 +177,18 @@ if na and nb:
 **4모델 전부 부호가 바뀌었다.** 합으로 보면 코드 이름이 더 많이 받지만,
 토큰당으로 보면 **지침 지시어가 더 많이 받는다.**
 
-> 이게 이 연구의 반전이다. "모델이 지침을 덜 봐서 어긴다"는 통념과 반대로,
-> 모델은 **토큰 하나하나 기준으로 지침을 더 보고 있으면서도** 어긴다.
-> → 문제는 어텐션이 아니라 내용(Value)에 있다는 step5·step6의 주장으로 이어진다.
+> ⚠️ **두 값은 서로 다른 것을 재는 지표다. 토큰당 평균이 "유일하게 옳은 비교"가 아니다.**
+>
+> | 지표 | 무엇을 묻나 |
+> |---|---|
+> | 구간 **합** | 지침 구간 **전체**가 받은 어텐션 질량 (코드 구간이 더 크다) |
+> | 토큰당 **평균** | 토큰 **하나당** 어텐션 밀도 (지시어가 더 크다) |
+>
+> 안전한 서술: **"지시어는 코드 이름보다 토큰당 어텐션 밀도가 높았지만, 코드 구간의
+> 총 어텐션 질량은 더 컸다."** 어느 쪽이 행동에 인과적으로 중요한지는 **관측만으로 정해지지 않는다.**
+>
+> 따라서 "문제는 어텐션이 아니라 내용이다"의 근거는 **step4가 아니라 step5(인과)** 다.
+> step4가 말할 수 있는 것은 **"'지침을 거의 안 본다'는 설명은 성립하지 않는다"** 까지다.
 
 재실험은 필요 없었다 — `span_token_counts`가 결과에 함께 저장돼 있어
 **불변 규약을 지키면서 다시 계산**할 수 있었다(§6). 그 필드를 안 남겼으면
@@ -190,8 +204,8 @@ if na and nb:
     "27": {
       "instr_rule_word__attention_weight":  0.0121,   // 규칙문 지시어 ← 핵심
       "instr_rule_word__av_norm":           0.28,
-      "instr_cand_camel__attention_weight": 0.0043,   // 후보열거 camel  ┐ 완전 대칭
-      "instr_cand_snake__attention_weight": 0.0041,   // 후보열거 snake  ┘
+      "instr_cand_camel__attention_weight": 0.0043,   // 후보열거 camel  ┐ 역할 대칭
+      "instr_cand_snake__attention_weight": 0.0041,   // 후보열거 snake  ┘ (토큰 수는 모델별로 다름)
       "instr_target_word__attention_weight":0.0164,   // 초판(합침) — 참고용
       "instr_viol_word__attention_weight":  0.0041,
       "instruction__attention_weight":      0.0312,   // 지침 문장 전체
@@ -206,7 +220,7 @@ if na and nb:
                           "instr_target_word": 4, "instr_viol_word": 2,
                           "instr_rule_word": 2, "instr_cand_camel": 2,
                           "instr_cand_snake": 2},        // ★ 없으면 비교 불가
-    "gqa": {...}, "seq_len": 512, "token_detail": {...}
+    "gqa": {...}, "seq_len": 188, "token_detail": {...}
   }
 }
 ```
@@ -215,8 +229,8 @@ if na and nb:
 
 1. `span_token_counts`를 **먼저** 본다. 토큰 수가 다르면 합끼리 비교하지 않는다.
 2. `instr_rule_word`를 쓴다. `instr_target_word`는 초판 키(2회 등장으로 부풀려짐).
-3. 후보열거 두 키(`instr_cand_*`)는 **대칭 통제**다. 여기서 차이가 크면
-   측정 장치 자체를 의심해야 한다.
+3. 후보열거 두 키(`instr_cand_*`)는 **역할 대칭 통제**다. 토큰 수까지 같은 모델(Qwen·Llama)에서만
+   순수한 대칭이고, DeepSeek·StableCode는 토큰 수가 달라 토큰당으로 봐야 한다.
 
 ```bash
 python scripts/observe_per_token.py results/step4_instr-observe

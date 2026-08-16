@@ -47,7 +47,11 @@ KV 캐시 (층 L)                  [배치, KV헤드수, 토큰수, head_dim]
 |---|---|---|
 | Key만 | 문제가 **어디를 보는가**(어텐션)에 있다 | `kind="key"` |
 | Value만 | 문제가 **무엇이 실려 오는가**(내용)에 있다 | `kind="value"` |
-| 둘 다 | 상한 | `kind="key_value"` |
+| 둘 다 | **결합 개입**(상한이 아니다 — 실제로 Value 단독보다 작다, §7) | `kind="key_value"` |
+
+> ⚠️ 결과를 말할 때 범위를 지킬 것. 이 개입은 **평균 덮어쓰기로 post-RoPE KV 캐시를 바꾸는
+> 특정 규격**이다. "Key 순효과가 작다"는 이 규격에서의 결과이고, **native Key 경로가 표기
+> 정보를 갖지 않는다**는 뜻이 아니다(→ [`../diag/code.md`](../diag/code.md)).
 
 **FFN·임베딩·가중치는 전혀 안 건드린다.** 그것이 곧 이 연구의 범위 주장이다.
 
@@ -79,7 +83,7 @@ S = logP("removeDuplicates") − logP("remove_duplicates")
 ## 3. 파이프라인
 
 ```
-Condition(composition=POOL, n_compliant=0, intervention=Intervention(
+Condition(composition=POOL, n_compliant=6, intervention=Intervention(
     kind=VALUE, layers="sweep", donor="compliant"|"unrelated_camel"|"unrelated_snake",
     kinds=("key","value","key_value")), token_unit="mean")
    │
@@ -263,8 +267,13 @@ if donor_kind.startswith("unrelated"):
 
 ```python
 # scripts/step3_net_effect.py — 같은 묶음(블록)끼리 먼저 뺀다
-net = recovery[compliant][b] - recovery[unrelated_snake][b]
+짝맞춤(권장) = recovery[unrelated_camel][b] - recovery[unrelated_snake][b]
+보조        = recovery[compliant][b]       - recovery[unrelated_snake][b]
 ```
+
+**권장 추정량은 `다른camel − 다른snake`다.** 두 공여는 문맥 구성이 완전히 같고(둘 다 6함수·
+단일 표기 별도 모듈) 차이가 오직 표기에서만 온다. `같은camel − 다른snake`는 처치 쪽이
+본래 조건(12함수 준수판)이라 문맥 구성이 달라 **보조 지표**다. 두 값을 모두 보고한다.
 
 묶음끼리 먼저 빼는 이유 — 블록마다 이름이 달라 난이도가 다르다. 평균끼리 빼면
 블록 구성 차이가 섞인다.
@@ -387,6 +396,7 @@ python scripts/step3_net_effect.py          # 처치 − 통제 (순효과) ← 
 | 판정 불가 | 없음 | `gap`·`undecidable` 저장 | 분모가 작은 조건을 섞어 평균 냈다 |
 | RoPE 우려 | 미확인 | **진단 A로 기각** | 편향 방향이 결론과 같았다 |
 | 「어텐션은 잉여」 | 주장했다 | **철회** | K+V 순효과 < Value 순효과 — 잉여라면 같아야 한다 |
+| 「Key 순효과는 0」 | 주장했다 | **철회** | 신뢰구간이 0을 **배제**한다(스크립트가 '0을 무나: 아니오'로 찍는다). "실용적으로 무시할 수준(Value의 2~11%)"이 정확한 표현이다 |
 
 ---
 

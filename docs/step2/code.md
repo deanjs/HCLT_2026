@@ -21,10 +21,10 @@ run(condition, handle, mode="observe")
 
 | 개념 | 트랜스포머의 어디 | 코드 | 이 스텝에서 하는 일 |
 |---|---|---|---|
-| 교사강제(teacher forcing) | 입력 끝 | `prompt_text + "def "` | **다음 토큰이 함수 이름이 되는 순간**을 만든다 |
+| 강제 접두 조건화 | 입력 끝 | `prompt_text + "def "` | **함수 이름이 올 자리**를 만든다 |
 | 어텐션 가중치 | softmax(QKᵀ/√d) | `output_attentions=True` | 마지막 query 행 `[Hq, seq]` |
 | Value 크기 | KV 캐시의 V | `values[layer].norm(dim=-1)` | 토큰별 ‖v‖ `[Hkv, seq]` |
-| 기여량 | a·‖v‖ | `attention_probe._token_stats` | 축 A × 축 B |
+| 기여량 **상한** | Σ a·‖v‖ | `attention_probe._token_stats` | 축 A × 축 B (실제 기여량 아님) |
 | GQA | Q헤드 ↔ KV헤드 매핑 | `h // group_size` | 헤드 수가 다른 둘을 곱하기 |
 | 구간(span) | 토큰 인덱스 집합 | `locate_token_spans` | "코드의 camel 이름들" 같은 묶음 |
 
@@ -73,8 +73,12 @@ prompt_text = prompt_text + forced_prefix        # forced_prefix = "def "
 ```
 
 왜 필요한가 — 그냥 생성하면 모델이 설명문("Sure, here's…")부터 쓸 수 있고,
-**이름을 결정하는 순간이 어디인지 알 수 없다.** `"def "`를 붙여 놓으면
-다음에 나올 토큰은 함수 이름일 수밖에 없다. 그 시점의 query 한 행이 우리 관측 대상.
+**이름을 결정하는 순간이 어디인지 알 수 없다.** `"def "`를 붙여 두면 다음 자리가
+**함수 이름이 올 자리**가 된다. 그 시점의 query 한 행이 우리 관측 대상.
+
+> 엄밀히는 정답 토큰을 먹이는 teacher forcing이라기보다 **강제 접두 조건화**(forced-prefix
+> conditioning)다. 모델이 반드시 이름을 낸다는 보장도 없다 — 실제로 StableCode는
+> `xt_remove_duplicates` 같은 접두가 붙은 출력을 낸다(→ `../step6/results.md`).
 
 `tokenize=False`인 이유는 **직접 토큰화하면서 offset을 받아야** 하기 때문(4-2).
 
@@ -88,7 +92,8 @@ offsets = [tuple(o) for o in enc.pop("offset_mapping")[0].tolist()]
 ```
 
 `add_special_tokens=False`가 필수다 — chat 템플릿이 이미 특수 토큰을 넣었는데
-여기서 또 BOS를 붙이면 **모든 인덱스가 1씩 밀려** 엉뚱한 자리를 잰다.
+여기서 또 BOS를 붙이면 **BOS가 두 번** 들어간다. (offset과 input_ids에 함께 추가되므로
+인덱스가 어긋나지는 않는다. 문제는 **모델이 보는 입력 분포가 달라진다**는 것이다.)
 
 이름 구간은 `def <name>(`로 찾은 뒤 앞뒤를 깎는다:
 
@@ -126,7 +131,8 @@ values = _value_cache(out.past_key_values)      # list[L],  각 [1, Hkv, seq, d]
 **헤드 수가 다르다.** 어텐션은 Q헤드 개, Value는 KV헤드 개. GQA 때문이다.
 
 메모리 주의 — `output_attentions`는 `[Hq, seq, seq]`를 층마다 뜬다.
-seq가 500이면 층당 수백 MB다. 그래서 이 스텝은 짧은 합성 프롬프트에만 쓴다.
+실제 우리 프롬프트는 seq 190~250이라 **층당 1~4 MB, 전 층 합쳐 40~130 MB** 수준이다.
+seq에 제곱으로 커지므로 긴 컨텍스트에는 축약 경로가 필요하다.
 
 ### 4-4. 마지막 query 행만 파이썬으로 옮긴다
 
@@ -155,10 +161,15 @@ av_norm          = sum(av for _, av, _ in per_tok)         # 구간 합   ← �
 v_norm           = sum(v  for _, _, v in per_tok) / len(per_tok)   # 구간 평균
 ```
 
+> ⚠️ **`av_norm`은 "실제 기여량"이 아니다.** 코드가 계산하는 것은 `Σⱼ aⱼ‖vⱼ‖`이고
+> 실제 어텐션 출력의 크기는 `‖Σⱼ aⱼvⱼ‖`다. 전자는 **벡터 상쇄를 무시**하고,
+> **출력 사영 `W_O`도 거치지 않았다.** 정확히는 **pre-W_O 토큰별 노름 질량 대리치**이고
+> 성격상 **상한**이다. 같은 층 안의 구간 비교에만 쓰고, 층·모델 간 절대 비교에는 쓰지 않는다.
+
 | 지표 | 집계 | 왜 |
 |---|---|---|
 | `attention_weight` | **합** | 각 헤드의 어텐션 행은 전체에 대해 1로 합해진다 → 구간 합 = 그 구간에 준 질량 |
-| `av_norm` | **합** | 구간이 잔차에 기여한 **총량** |
+| `av_norm` | **합** | Σⱼ aⱼ‖vⱼ‖ — 기여량의 **상한 대리치**(아래 경고) |
 | `v_norm` | 평균 | 크기 지표라 토큰당 평균이 맞다 |
 
 ⚠️ **합이라서 생기는 편향이 이 스텝의 가장 중요한 함정이다.**
