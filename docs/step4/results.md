@@ -43,6 +43,59 @@
 
 ## 2. 결과
 
+### 역할별 구간을 전부 그리면
+
+이 스텝의 기여는 **표기어를 역할별로 나눈 것**인데, 그동안 그림은 `instr_rule_word` vs
+`code_camel` 두 선만 그렸다. 저장된 8개 구간을 역할별로 다 그리면 이렇게 된다.
+
+| Qwen2.5-Coder-3B | DeepSeek-Coder-6.7B |
+|---|---|
+| ![qwen](figures/spans_qwen.png) | ![deepseek](figures/spans_deepseek.png) |
+| **Llama-3.2-3B (범용)** | **StableCode-3B** |
+| ![llama](figures/spans_llama.png) | ![stability](figures/spans_stability.png) |
+
+**초판 키를 왜 버렸는지**도 한 장으로 보인다 — 요구 표기어(2회 등장)를 합쳐 세면
+규칙문 지시어 하나보다 값이 부풀려진다.
+
+| Qwen | DeepSeek |
+|---|---|
+| ![qwen](figures/initial_vs_split_qwen.png) | ![deepseek](figures/initial_vs_split_deepseek.png) |
+
+### ★ 정규화가 이 스텝의 결론을 뒤집는다
+
+`ratio_*`는 **지시어 ÷ 코드 이름** 비율을 두 기준으로 겹쳐 그린 것이다.
+가로선 1.0 위면 "지시어를 더 본다".
+
+| Qwen2.5-Coder-3B | DeepSeek-Coder-6.7B |
+|---|---|
+| ![qwen](figures/ratio_qwen.png) | ![deepseek](figures/ratio_deepseek.png) |
+| **Llama-3.2-3B (범용)** | **StableCode-3B** |
+| ![llama](figures/ratio_llama.png) | ![stability](figures/ratio_stability.png) |
+
+| 모델 | 1.0 넘는 층 (토큰당) | 1.0 넘는 층 (합) | 전 층 평균(토큰당) | 전 층 평균(합) |
+|---|---|---|---|---|
+| Qwen | **19 / 36** | 5 / 36 | 2.39 | 0.38 |
+| DeepSeek | **24 / 32** | 6 / 32 | 3.25 | 0.68 |
+| StableCode | **21 / 32** | 1 / 32 | 2.34 | 0.40 |
+| Llama (범용) | **12 / 28** | 1 / 28 | 1.59 | 0.25 |
+
+**두 기준이 1.0을 사이에 두고 갈린다.** 토큰당으로 보면 지시어를 더 보고,
+합으로 보면 코드를 더 본다. 네 모델 모두 그렇다.
+
+> ⚠️ **어느 쪽이 "옳은" 것이 아니다.** 둘은 서로 다른 것을 재는 지표다.
+>
+> | 지표 | 답하는 질문 |
+> |---|---|
+> | 구간 **합** | 지침 구간 **전체**가 받은 어텐션 질량은 얼마인가 |
+> | **토큰당** 평균 | 지침 토큰 **하나**가 코드 토큰 하나보다 강하게 참조되는가 |
+>
+> 우리 주장("모델이 지침을 거의 안 봐서 어긴다는 설명은 성립하지 않는다")에는
+> **토큰당**이 맞는 자다 — 지시어는 2~4토큰, 코드 이름은 12~22토큰이라
+> 합끼리 비교하면 길이가 결과를 지배한다.
+>
+> **다만 이것만으로 "문제는 어텐션이 아니다"까지 갈 수 없다.** 그 판단은 관측이 아니라
+> **step5의 인과 개입**이 한다. 이 절은 "덜 본다는 설명이 성립하지 않는다"까지만 주장한다.
+
 **토큰당 참조량 — 붉은 점선이 step5의 인과 봉우리 층**
 
 ![qwen](figures/layer_alignment_qwen.png)
