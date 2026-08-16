@@ -85,6 +85,11 @@ def run(
     생성은 handle.chat_generate 또는 주입한 generate_fn을 쓴다
     (후자는 모델 없이 파이프라인을 테스트하기 위한 seam).
     """
+    # step6 처방 개입(값 조향·Spotlight)은 노트북 mode 인자와 무관하게 항상 처방 경로로.
+    # (이 두 종류는 step6 전용 — KV치환 경로가 종류를 몰라 무시하는 사고를 원천 차단)
+    if condition.intervention.kind in (
+        InterventionKind.VALUE_ADD, InterventionKind.ATTENTION_AMPLIFY):
+        return _run_steer(condition, handle)
     if mode == "observe":
         return _run_observation(condition, handle)
     if mode == "intervene_generate":
