@@ -25,8 +25,12 @@
 
 ## 2. 결과
 
-![층 정렬](figures/layer_alignment.png)
-![요약](figures/summary_rule_vs_code.png)
+**토큰당 참조량 — 붉은 점선이 step5의 인과 봉우리 층**
+
+![qwen](figures/layer_alignment_qwen.png)
+![deepseek](figures/layer_alignment_deepseek.png)
+![stability](figures/layer_alignment_stability.png)
+![llama](figures/layer_alignment_llama.png)
 
 **전 층 평균, 규칙문 지시어 ÷ 코드 이름**
 
@@ -53,7 +57,7 @@
 | Llama | L13 | L24 (판정 불가) |
 
 판정 가능한 세 모델에서 **지침을 가장 강하게 참조하는 층과 지침 개입이 실제로 작동하는 층이
-정확히 같다.** 그림의 붉은 점선이 step5의 인과 봉우리다.
+정확히 같다.**
 
 ---
 

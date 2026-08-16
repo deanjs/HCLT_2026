@@ -7,10 +7,13 @@ HCLT 템플릿(A4·2단·10pt)에 맞춘다.
   · 제목은 넣지 않는다 — 캡션은 LaTeX에서 단다
 
 만드는 그림 (각 스텝 폴더의 figures/ 아래)
-  step1/figures/cliff              준수율 절벽 (RQ1)                단 폭
-  step3/figures/code_causality     통제 뺀 표기 순효과 (RQ2)        전체폭
-  step3/figures/key_vs_value       내용 vs 어텐션 요약 막대          단 폭
-  step4/figures/layer_alignment    관측 층 vs 인과 층 (RQ3)         전체폭
+  step1/figures/cliff                    준수율 절벽 (RQ1)
+  step3/figures/code_causality_<모델>    통제 뺀 표기 순효과 (RQ2)   모델당 1장
+  step3/figures/key_vs_value             내용 vs 어텐션 요약 막대
+  step4/figures/layer_alignment_<모델>   관측 층 vs 인과 층 (RQ3)    모델당 1장
+
+**모두 단 폭(3.3in)이다.** 모델마다 세로 눈금 범위가 크게 달라 한 장에 몰아넣으면 읽을 수 없고,
+2단 조판에서도 단 폭 그림이 배치가 자유롭다.
 
 쓰는 법:
     python scripts/make_paper_figures.py
@@ -81,8 +84,8 @@ def fig1_cliff(out: Path):
                         color=color, alpha=0.18, linewidth=0)
     ax.set_xlabel("Violating names in the context (out of 12)")
     ax.set_ylabel("Compliance rate")
-    ax.set_ylim(-0.03, 1.05)
-    ax.legend(frameon=False)
+    ax.set_ylim(-0.05, 1.18)
+    ax.legend(frameon=False, loc="upper right", handlelength=1.4)
     ax.grid(alpha=0.25, linewidth=0.4)
     fig.tight_layout(pad=0.3)
     fig.savefig(out / "cliff.pdf"); fig.savefig(out / "cliff.png")
@@ -110,10 +113,11 @@ def _net(cube, m, L, kind, a="unrelated_camel", b="unrelated_snake"):
 
 
 def fig2_code_causality(out: Path):
+    """모델마다 그림 하나씩 — 단 폭. 세로 눈금 범위가 모델마다 크게 달라 한 장에 겹치면 못 읽는다."""
     cube = _step3_cube()
-    fig, axes = plt.subplots(1, 4, figsize=(7.0, 1.85), sharey=False)
-    for ax, m in zip(axes, MODELS):
+    for m in MODELS:
         layers = sorted(cube[m]["unrelated_camel"])
+        fig, ax = plt.subplots(figsize=(3.3, 2.3))
         for kind, color, lab in (("value", C_VALUE, "Value only"),
                                  ("key", C_KEY, "Key only"),
                                  ("key_value", C_BOTH, "Key + Value")):
@@ -123,18 +127,20 @@ def fig2_code_causality(out: Path):
             ax.fill_between(layers, [a - b for a, b in pts], [a + b for a, b in pts],
                             color=color, alpha=0.2, linewidth=0)
         ax.axhline(0, color="black", linewidth=0.5)
-        ax.set_title(LABEL[m])
         ax.set_xlabel("Layer")
+        ax.set_ylabel("Notation-specific recovery")
+        ax.margins(y=0.22)                      # 범례가 곡선을 덮지 않도록 위쪽 여유
+        ax.legend(frameon=False, loc="upper left", handlelength=1.4)
         ax.grid(alpha=0.25, linewidth=0.4)
-    axes[0].set_ylabel("Notation-specific\nrecovery")
-    axes[0].legend(frameon=False, loc="upper left")
-    fig.tight_layout(pad=0.3)
-    fig.savefig(out / "code_causality.pdf"); fig.savefig(out / "code_causality.png")
-    plt.close(fig)
+        fig.tight_layout(pad=0.4)
+        fig.savefig(out / f"code_causality_{m}.pdf")
+        fig.savefig(out / f"code_causality_{m}.png")
+        plt.close(fig)
 
 
 # ── 그림 3. 지침: 어디를 보나(step4) vs 어디가 작동하나(step5) ──────────
 def fig3_instruction(out: Path):
+    """모델마다 그림 하나씩 — 참조량 곡선 + step5 인과 봉우리 표시."""
     obs = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     for r in load("step4_instr-observe"):
         m = r["condition"]["model"]["family"]
@@ -152,26 +158,28 @@ def fig3_instruction(out: Path):
             if x is not None:
                 cause[m][int(L)].append(x)
 
-    fig, axes = plt.subplots(1, 4, figsize=(7.0, 1.95))
-    for ax, m in zip(axes, MODELS):
+    for m in MODELS:
         layers = sorted(obs[m])
-        ax.plot(layers, [st.mean(obs[m][L]["instr_rule_word"]) for L in layers],
-                color="tab:blue", label="Instruction word")
-        ax.plot(layers, [st.mean(obs[m][L]["code_camel"]) for L in layers],
-                color="tab:orange", label="Code names")
-        ax.set_xlabel("Layer")
-        ax.set_title(LABEL[m])
-        ax.grid(alpha=0.25, linewidth=0.4)
+        instr = [st.mean(obs[m][L]["instr_rule_word"]) for L in layers]
+        code = [st.mean(obs[m][L]["code_camel"]) for L in layers]
+        fig, ax = plt.subplots(figsize=(3.3, 2.3))
+        ax.plot(layers, instr, color="tab:blue", label="Instruction word")
+        ax.plot(layers, code, color="tab:orange", label="Code names")
         peak = max(cause[m], key=lambda L: st.mean(cause[m][L]))
         ax.axvline(peak, color="tab:red", linewidth=0.9, linestyle="--")
-        ax.annotate(f"causal L{peak}", xy=(peak, ax.get_ylim()[1]),
-                    xytext=(2, -6), textcoords="offset points",
-                    fontsize=6, color="tab:red", va="top")
-    axes[0].set_ylabel("Attention per token")
-    axes[0].legend(frameon=False, loc="upper left")
-    fig.tight_layout(pad=0.3)
-    fig.savefig(out / "layer_alignment.pdf"); fig.savefig(out / "layer_alignment.png")
-    plt.close(fig)
+        ax.set_xlabel("Layer")
+        ax.set_ylabel("Attention per token")
+        ax.margins(y=0.30)                       # 라벨·범례가 곡선에 닿지 않도록
+        top = ax.get_ylim()[1]
+        # 세로선 라벨은 축 안쪽 빈 곳에, 선에서 떨어뜨려 놓는다
+        ax.text(peak, top * 0.97, f" causal L{peak}", color="tab:red",
+                fontsize=6.5, ha="left" if peak < layers[-1] * 0.7 else "right", va="top")
+        ax.legend(frameon=False, loc="upper left", handlelength=1.4)
+        ax.grid(alpha=0.25, linewidth=0.4)
+        fig.tight_layout(pad=0.4)
+        fig.savefig(out / f"layer_alignment_{m}.pdf")
+        fig.savefig(out / f"layer_alignment_{m}.png")
+        plt.close(fig)
 
 
 # ── 그림 4. 내용 vs 어텐션 요약 ─────────────────────────────────────────
@@ -193,7 +201,8 @@ def fig4_key_vs_value(out: Path):
            color=C_KEY, label="Key only", error_kw={"linewidth": 0.7})
     ax.axhline(0, color="black", linewidth=0.5)
     ax.set_xticks(list(x))
-    ax.set_xticklabels([f"{LABEL[m].split('-')[0]}\nL{p}" for m, p in zip(MODELS, peaks)])
+    ax.set_xticklabels([f"{LABEL[m].split('-')[0]}\nL{p}" for m, p in zip(MODELS, peaks)], fontsize=6.5)
+    ax.margins(y=0.20)
     ax.set_ylabel("Notation-specific recovery")
     ax.legend(frameon=False)
     ax.grid(axis="y", alpha=0.25, linewidth=0.4)

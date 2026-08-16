@@ -125,7 +125,15 @@ def _run_intervention(condition: Condition, handle: Optional[ModelHandle]) -> Ru
     if iv.is_sweep:
         # 전 층 × K/V 분해 스윕(step 1). 단일 층(step C)과 설정을 공유한다.
         return _run_intervention_sweep(condition, handle)
-    layer = list(iv.layers)[0]
+    layers = list(iv.layers)
+    if len(layers) != 1:
+        # 조용한 오작동 금지: 예전에는 목록을 줘도 **첫 층만** 돌고 나머지는 조용히 버려졌다.
+        # 파일명에는 그 첫 층만 남아 "여러 층을 쟀다"고 오해하기 쉽다.
+        raise ValueError(
+            f"단일 층 개입에는 층을 하나만 준다 (받음: {layers}). "
+            "여러 층을 재려면 층마다 조건을 따로 만들거나 layers='sweep'을 쓴다."
+        )
+    layer = layers[0]
     instr_target = iv.target == "instruction"
     setup = _preference_setup_instruction(condition) if instr_target else _preference_setup(condition)
     span_kind = "literal" if instr_target else "def_name"

@@ -34,7 +34,14 @@
 
 ## 2. 결과
 
-![층별 순효과](figures/code_causality.png)
+**층별 표기 순효과** (모델마다 세로 눈금 범위가 달라 따로 그린다)
+
+![qwen](figures/code_causality_qwen.png)
+![deepseek](figures/code_causality_deepseek.png)
+![llama](figures/code_causality_llama.png)
+![stability](figures/code_causality_stability.png)
+
+**봉우리 층 요약**
 
 ![요약](figures/key_vs_value.png)
 
