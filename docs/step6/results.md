@@ -29,6 +29,12 @@
 
 ### 2-1. 처방 비교 (준수 회복)
 
+### 한눈에 보기 — 헤드라인
+
+![이해용](figures/explain_headline.png)
+
+### 논문용 그림
+
 ![세기 곡선](figures/strength_qwen.png)
 ![세기 곡선](figures/strength_deepseek.png)
 
@@ -76,6 +82,15 @@
 | **Llama** | **1~4** | **1.000** | 1.000 | `removeDuplicates` |
 | | 8 | 0.000 | 0.714 | 이름 없음 |
 | **StableCode** | 0~8 | ≤ 0.143 | 0.000~1.000 | `xt_remove_duplicates`, `ize`, 없음 |
+
+### 한눈에 보기 — 점수와 실제가 어긋난다
+
+![이해용](figures/explain_score_vs_real.png)
+
+파랑(실제 준수율)이 세기 4에서 무너지는데 주황(선호 점수 회복)은 그때 최고다.
+**점수만 보면 처방이 성공한 것처럼 보이는 구간이 있다.**
+
+### 논문용 그림
 
 ![이름 건전성](figures/name_health.png)
 
