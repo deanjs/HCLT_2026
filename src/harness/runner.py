@@ -98,13 +98,18 @@ def run(
     if mode == "vcosine":
         # 관측 측(step 1): 같은 이름 camel/snake v의 층별 코사인 궤적
         return _run_cosine_sweep(condition, handle)
+    if mode == "steer" or condition.intervention.kind in (InterventionKind.VALUE_ADD,
+                                                          InterventionKind.ATTENTION_AMPLIFY):
+        # 처방(step6). 개입 종류로도 오지만, **무개입 하한선**은 mode='steer'로 부른다
+        # (같은 교사강제 점수로 재야 비교가 성립한다 — 생성 경로로 새면 안 된다).
+        return _run_steer(condition, handle)
     if mode == "kv_diagnose":
         # 진단: 평균 덮어쓰기가 Key를 Value보다 불리하게 망가뜨리는가(점수 안 매김, 가볍다)
         return _run_kv_diagnostics(condition, handle)
     if mode != "generate":
         raise ValueError(
             f"알 수 없는 mode: {mode!r} "
-            "(generate|observe|intervene_generate|vcosine|kv_diagnose)"
+            "(generate|observe|intervene_generate|vcosine|kv_diagnose|steer)"
         )
     if condition.intervention.kind is not InterventionKind.NONE:
         # 개입 경로(step C): KV 치환으로 준수 선호도 회복 측정
@@ -220,6 +225,126 @@ def _run_kv_diagnostics(condition: Condition, handle: Optional[ModelHandle]) -> 
         },
     )
     return RunOutput(condition=condition, metrics=metrics)
+
+
+# 모델·층·출처가 같으면 조향 방향은 한 번만 만든다(무거운 추출을 조건마다 반복하지 않도록).
+_STEER_VEC: dict = {}
+
+
+def _steer_samples(condition: Condition, n_blocks: int = 8) -> list:
+    """조향 방향 추출용 표본 — 여러 묶음의 선행을 전부 camel / 전부 snake로 렌더한 프롬프트쌍."""
+    from dataclasses import replace as _replace
+    system = build_instruction_text(condition)
+    samples = []
+    for b in range(n_blocks):
+        c_b = _replace(condition, preceding=_replace(condition.preceding, pool_block=b))
+        specs = preceding_specs(c_b)
+        cam = render_preceding([(sp, Notation.CAMEL) for sp, _ in specs])
+        sna = render_preceding([(sp, Notation.SNAKE) for sp, _ in specs])
+        samples.append({
+            "camel_messages": [{"role": "system", "content": system},
+                               {"role": "user", "content": user_message_with_preceding(c_b, cam)}],
+            "snake_messages": [{"role": "system", "content": system},
+                               {"role": "user", "content": user_message_with_preceding(c_b, sna)}],
+            "camel_names": [sp.name(Notation.CAMEL) for sp, _ in specs],
+            "snake_names": [sp.name(Notation.SNAKE) for sp, _ in specs],
+        })
+    return samples
+
+
+def _spotlight_span_positions(handle, messages, condition: Condition,
+                              forced_prefix: str = "def ") -> list[int]:
+    """Spotlight가 밀어 올릴 토큰 자리.
+
+    span="rule_word"   : 규칙문 지시어만 — step5에서 값을 바꾼 자리와 **정확히 같다**
+    span="instruction" : 지침 문장 전체 — 원 논문 정의
+
+    못 찾으면 예외. 빈 스팬으로 돌리면 "개입했는데 효과 없음"으로 조용히 남는다.
+    """
+    from .attention_probe import find_char_spans, locate_token_spans
+    from .model import _locate_target_tokens
+
+    tok = handle.tokenizer
+    text = tok.apply_chat_template(messages, tokenize=False,
+                                   add_generation_prompt=True) + forced_prefix
+    enc = tok(text, return_tensors="pt", return_offsets_mapping=True, add_special_tokens=False)
+    offsets = [tuple(o) for o in enc["offset_mapping"][0].tolist()]
+
+    span = condition.intervention.span
+    if span == "rule_word":
+        word = notation_word(condition.instruction.token_notation)
+        pos = [p for lst in _locate_target_tokens(text, offsets, [word], "literal") for p in lst]
+        what = f"규칙문 지시어 {word!r}"
+    else:
+        instruction_text = build_instruction_text(condition)
+        char_spans = {"instruction": find_char_spans(text, [instruction_text])}
+        pos = list(locate_token_spans(offsets, char_spans)["instruction"])
+        what = "지침 문장 전체"
+    if not pos:
+        raise ValueError(
+            f"Spotlight 스팬을 프롬프트에서 찾지 못했다 ({what}). "
+            "chat 템플릿이 문장을 변형했을 수 있다."
+        )
+    return pos
+
+
+def _run_steer(condition: Condition, handle: Optional[ModelHandle]) -> RunOutput:
+    """처방 경로(step6) — 값 조향(CAA식) / Spotlight 어텐션 조향으로 준수 회복을 잰다.
+
+    출발점은 **절벽 조건**(지침은 camel, 선행은 전부 위반). 교사강제 준수 선호 점수의
+    회복률 = (S_개입 − S_기준)/(S_깨끗 − S_기준).
+    """
+    if handle is None:
+        raise ValueError("처방(step6)에는 handle이 필요하다 (모델 내부 접근)")
+    from . import steer as steer_mod
+
+    iv = condition.intervention
+    setup = _preference_setup(condition)       # 코드 타깃 절벽 — viol/comp/후보를 재사용
+    common = dict(cand_comp=setup["candidate_compliant"], cand_viol=setup["candidate_violation"])
+    detail: dict = {}
+
+    if iv.kind is InterventionKind.VALUE_ADD:
+        layers = list(iv.layers)
+        if len(layers) != 1:
+            # B에서 겪은 실수 재발 방지 — 목록을 주면 조용히 첫 층만 쓰던 문제.
+            raise ValueError(
+                f"값 조향에는 층을 하나만 준다 (받음: {layers}). 층마다 조건을 따로 만든다."
+            )
+        layer = layers[0]
+        key = (condition.model.name, layer, iv.steer_source)
+        if key not in _STEER_VEC:
+            _STEER_VEC[key] = steer_mod.build_steer_vector(handle, _steer_samples(condition), layer)
+        vec, vec_meta = _STEER_VEC[key]
+        detail["steer_vector"] = vec_meta       # 무엇으로 만든 방향인지 결과에 남긴다
+        res = steer_mod.steer_preference(handle, setup["viol_messages"], setup["comp_messages"],
+                                         kind="value_add", layer=layer,
+                                         strength=iv.strength, steer_vec=vec, **common)
+    elif iv.kind is InterventionKind.ATTENTION_AMPLIFY:
+        pos = _spotlight_span_positions(handle, setup["viol_messages"], condition)
+        res = steer_mod.steer_preference(handle, setup["viol_messages"], setup["comp_messages"],
+                                         kind="spotlight", psi_target=iv.amplify,
+                                         span_positions=pos, **common)
+    elif iv.kind is InterventionKind.NONE:
+        res = steer_mod.steer_preference(handle, setup["viol_messages"], setup["comp_messages"],
+                                         kind="none", **common)
+    else:
+        raise ValueError(f"step6가 지원하지 않는 개입: {iv.kind.value}")
+
+    extra = {
+        "mode": "steer",
+        "method": iv.kind.value,
+        "span": iv.span,
+        "strength": iv.strength,
+        "psi_target": iv.amplify,
+        "steer_source": iv.steer_source,
+        "n_compliant": condition.preceding.n_compliant,
+        "target": condition.instruction.target_notation.value,
+        "tag": condition.tag,
+    }
+    extra.update(res)
+    extra.update(detail)
+    return RunOutput(condition=condition,
+                     metrics=Metrics(compliance_preference=res["S_int"], extra=extra))
 
 
 def _preference_setup(condition: Condition) -> dict:
