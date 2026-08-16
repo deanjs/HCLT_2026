@@ -1,0 +1,215 @@
+"""step6 집계 — 처방 비교표 · 이름 건전성 · 층 특이성.
+
+세 실행분을 함께 읽는다.
+  results/step6_steer/              본실험(선호 점수 회복)
+  results/step6_steer-generate/     조향 하에서 실제 생성한 이름
+  results/step6_steer-crosslayer/   맞는 층 방향을 엉뚱한 층에 주입
+
+쓰는 법:
+    python scripts/step6_summary.py [--figs docs/step6/figures]
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import statistics as st
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+MODELS = ["qwen", "deepseek", "llama", "stability"]
+LABEL = {"qwen": "Qwen2.5-Coder-3B", "deepseek": "DeepSeek-Coder-6.7B",
+         "llama": "Llama-3.2-3B", "stability": "StableCode-3B"}
+
+
+def load(step: str):
+    d = Path("results") / step
+    return [json.loads(p.read_text(encoding="utf-8")) for p in sorted(d.glob("*.json"))] \
+        if d.is_dir() else []
+
+
+def ci95(xs):
+    if not xs:
+        return float("nan"), float("nan")
+    if len(xs) < 2:
+        return xs[0], 0.0
+    return st.mean(xs), 1.96 * st.stdev(xs) / math.sqrt(len(xs))
+
+
+def peak_layers(rows):
+    """모델별 '맞는 층' — 조건에 쓰인 값 중 큰 쪽(엉뚱한 층은 초반으로 잡았다)."""
+    seen = defaultdict(set)
+    for r in rows:
+        ex = r["metrics"]["extra"]
+        if ex["method"] == "value_add":
+            seen[r["condition"]["model"]["family"]].add(ex["layer"])
+    return {m: max(v) for m, v in seen.items()}, {m: min(v) for m, v in seen.items()}
+
+
+def main() -> None:
+    steer = load("step6_steer")
+    gen = load("step6_steer-generate")
+    cross = load("step6_steer-crosslayer")
+    fig_dir = None
+    if "--figs" in sys.argv:
+        fig_dir = Path(sys.argv[sys.argv.index("--figs") + 1])
+        fig_dir.mkdir(parents=True, exist_ok=True)
+    PEAK, EARLY = peak_layers(steer)
+
+    # ── ① 헤드라인 비교표 ────────────────────────────────────────────
+    rec = defaultdict(lambda: defaultdict(list))
+    psi = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    und = defaultdict(int)
+    for r in steer:
+        ex = r["metrics"]["extra"]
+        m = r["condition"]["model"]["family"]
+        if ex.get("undecidable") or ex.get("recovery") is None:
+            und[m] += 1
+            continue
+        meth = ex["method"]
+        if meth == "none":
+            key = "무개입"
+        elif meth == "value_add":
+            where = "맞는층" if ex["layer"] == PEAK[m] else "엉뚱층"
+            key = f"값조향 {where} 세기{ex['strength']:g}"
+        else:
+            key = f"Spotlight {ex['span']} ψ{ex['psi_target']:g}"
+            psi[m][key]["before"].append(ex["attn_span_before"])
+            psi[m][key]["after"].append(ex["attn_span_after"])
+        rec[m][key].append(ex["recovery"])
+
+    print("=" * 96)
+    print("① 처방 비교 — 절벽 바닥에서 얼마나 되살아나나 (회복률 1 = 문맥이 깨끗한 상태)")
+    print("=" * 96)
+    order = (["무개입"]
+             + [f"값조향 맞는층 세기{s:g}" for s in (1, 2, 4, 8)]
+             + [f"값조향 엉뚱층 세기{s:g}" for s in (1, 2, 4, 8)]
+             + [f"Spotlight {sp} ψ{p:g}" for sp in ("rule_word", "instruction") for p in (0.1, 0.3)])
+    print(f"{'방법':<26}" + "".join(f"{LABEL[m].split('-')[0]:>16}" for m in MODELS))
+    for key in order:
+        line = f"{key:<26}"
+        for m in MODELS:
+            v = rec[m].get(key)
+            line += f"{(f'{st.mean(v):.3f}' if v else '—'):>16}"
+        print(line)
+    print("\n판정 불가로 뺀 조건: " + " · ".join(f"{m} {und[m]}" for m in MODELS))
+
+    # ── ② Spotlight가 실제로 걸렸는가 ────────────────────────────────
+    print("\n" + "=" * 96)
+    print("② Spotlight가 실제로 걸렸는가 — 개입 전 → 후 어텐션 비중")
+    print("   비중이 올랐는데도 회복이 0이어야 「어텐션 접근으로는 안 된다」의 근거가 된다.")
+    print("=" * 96)
+    print(f"{'모델':<11}{'조건':<28}{'개입 전':>10}{'개입 후':>10}{'올랐나':>8}")
+    for m in MODELS:
+        for key in sorted(psi[m]):
+            b, a = st.mean(psi[m][key]["before"]), st.mean(psi[m][key]["after"])
+            print(f"{m:<11}{key:<28}{b:>10.3f}{a:>10.3f}{'예' if a > b + 1e-9 else '아니오':>8}")
+
+    # ── ③ 이름이 멀쩡한가 ────────────────────────────────────────────
+    if gen:
+        print("\n" + "=" * 96)
+        print("③ 조향을 세게 걸면 이름이 깨지는가 (실제 생성)")
+        print("=" * 96)
+        by = defaultdict(lambda: defaultdict(list))
+        for r in gen:
+            ex = r["metrics"]["extra"]
+            by[r["condition"]["model"]["family"]][ex["strength"] or 0.0].append(ex)
+        print(f"{'모델':<11}{'세기':>6}{'준수율':>9}{'멀쩡한 이름':>12}"
+              f"{'camel':>8}{'snake':>8}{'그 외':>8}{'n':>5}")
+        for m in MODELS:
+            for s in sorted(by[m]):
+                v = by[m][s]
+                nota = [e["notation"] for e in v]
+                print(f"{m:<11}{s:>6g}{st.mean([e['compliant'] for e in v]):>9.3f}"
+                      f"{st.mean([e['name_ok'] for e in v]):>12.3f}"
+                      f"{nota.count('camel') / len(v):>8.2f}{nota.count('snake') / len(v):>8.2f}"
+                      f"{nota.count('other') / len(v):>8.2f}{len(v):>5}")
+            print()
+        bad = [e for r in gen if not (e := r["metrics"]["extra"])["name_ok"]]
+        print(f"깨진 이름 {len(bad)}개 / 전체 {len(gen)}개")
+        for e in bad[:8]:
+            print(f"  세기 {e['strength'] or 0:g}: {e['name']!r} — {e['name_reason']}")
+
+    # ── ④ 방향이 층 특이적인가 ───────────────────────────────────────
+    if cross:
+        print("\n" + "=" * 96)
+        print("④ 방향이 층 특이적인가 — 맞는 층 방향을 엉뚱한 층에 넣으면")
+        print("=" * 96)
+        cr = defaultdict(lambda: defaultdict(list))
+        for r in cross:
+            ex = r["metrics"]["extra"]
+            if ex.get("undecidable") or ex.get("recovery") is None:
+                continue
+            cr[r["condition"]["model"]["family"]][ex["strength"]].append(ex["recovery"])
+        print(f"{'모델':<11}{'세기':>6}{'맞는층→맞는층':>16}{'엉뚱층→엉뚱층':>16}{'맞는층→엉뚱층':>16}")
+        for m in MODELS:
+            for s in sorted(cr[m]):
+                same = rec[m].get(f"값조향 맞는층 세기{s:g}")
+                early = rec[m].get(f"값조향 엉뚱층 세기{s:g}")
+                f = lambda v: f"{st.mean(v):.3f}" if v else "—"     # noqa: E731
+                print(f"{m:<11}{s:>6g}{f(same):>16}{f(early):>16}{f(cr[m][s]):>16}")
+            print()
+
+    if fig_dir:
+        _figures(rec, gen, PEAK, fig_dir)
+        print(f"그림 → {fig_dir}/")
+
+
+def _figures(rec, gen, PEAK, out: Path):
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    matplotlib.rcParams.update({"font.family": "serif", "font.size": 8, "figure.dpi": 300,
+                                "axes.labelsize": 8, "xtick.labelsize": 7,
+                                "ytick.labelsize": 7, "legend.fontsize": 7})
+    S = [1, 2, 4, 8]
+    # 세기 곡선 — 방법별
+    for m in MODELS:
+        if not rec[m]:
+            continue
+        fig, ax = plt.subplots(figsize=(3.3, 2.3))
+        for where, color, lab in (("맞는층", "tab:blue", f"Value steering @L{PEAK[m]}"),
+                                  ("엉뚱층", "tab:cyan", "Value steering @early layer")):
+            ys = [st.mean(rec[m][f"값조향 {where} 세기{s:g}"])
+                  if rec[m].get(f"값조향 {where} 세기{s:g}") else float("nan") for s in S]
+            ax.plot(S, ys, marker="o", ms=3, color=color, label=lab)
+        sp = [st.mean(v) for k, v in rec[m].items() if k.startswith("Spotlight")]
+        if sp:
+            ax.axhline(max(sp), color="0.45", linestyle="--", linewidth=1.0,
+                       label="Spotlight (best)")
+        ax.axhline(0, color="black", linewidth=0.5)
+        ax.axhline(1, color="tab:red", linewidth=0.7, linestyle=":")
+        ax.set_xscale("log", base=2); ax.set_xticks(S); ax.set_xticklabels([str(s) for s in S])
+        ax.set_xlabel("Steering strength"); ax.set_ylabel("Compliance recovery")
+        ax.margins(y=0.25); ax.grid(alpha=0.25, linewidth=0.4)
+        ax.legend(frameon=False, loc="upper left", handlelength=1.4)
+        fig.tight_layout(pad=0.4)
+        fig.savefig(out / f"strength_{m}.pdf"); fig.savefig(out / f"strength_{m}.png")
+        plt.close(fig)
+
+    if not gen:
+        return
+    by = defaultdict(lambda: defaultdict(list))
+    for r in gen:
+        ex = r["metrics"]["extra"]
+        by[r["condition"]["model"]["family"]][ex["strength"] or 0.0].append(ex)
+    fig, ax = plt.subplots(figsize=(3.3, 2.3))
+    for m, color in zip(MODELS, ("tab:blue", "tab:orange", "tab:green", "tab:red")):
+        if not by[m]:
+            continue
+        xs = sorted(by[m])
+        ax.plot(xs, [st.mean([e["compliant"] for e in by[m][x]]) for x in xs],
+                marker="o", ms=3, color=color, label=f"{LABEL[m].split('-')[0]} compliance")
+        ax.plot(xs, [st.mean([e["name_ok"] for e in by[m][x]]) for x in xs],
+                marker="s", ms=3, color=color, linestyle="--", alpha=0.6)
+    ax.set_xlabel("Steering strength"); ax.set_ylabel("Rate")
+    ax.set_ylim(-0.05, 1.15); ax.grid(alpha=0.25, linewidth=0.4)
+    ax.legend(frameon=False, fontsize=6, loc="lower left")
+    fig.tight_layout(pad=0.4)
+    fig.savefig(out / "name_health.pdf"); fig.savefig(out / "name_health.png")
+    plt.close(fig)
+
+
+if __name__ == "__main__":
+    main()
