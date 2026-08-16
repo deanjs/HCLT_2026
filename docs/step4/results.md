@@ -92,9 +92,11 @@ instr_viol_word   = 반대쪽 후보열거만                Qwen 2 = 2   · Dee
 
 **그림에서 `(2 occ.)` · `(1 occ.)`의 `occ.`는 occurrence, 즉 등장 횟수다.**
 
-| Qwen | DeepSeek |
+| Qwen2.5-Coder-3B | DeepSeek-Coder-6.7B |
 |---|---|
 | ![qwen](figures/initial_vs_split_qwen.png) | ![deepseek](figures/initial_vs_split_deepseek.png) |
+| **Llama-3.2-3B (범용)** | **StableCode-3B** |
+| ![llama](figures/initial_vs_split_llama.png) | ![stability](figures/initial_vs_split_stability.png) |
 
 **그림 읽는 법** — 세 선을 겹쳐 놓았다.
 
