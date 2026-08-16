@@ -6,7 +6,146 @@
 
 ---
 
-## 1. 무엇을 어떻게 쟀나
+## 1. 결과 JSON 읽는 법
+
+> 이 스텝의 결과는 **폴더가 셋**이다.
+> `results/step6_steer/`(점수 회복, 2184개) · `step6_steer-generate/`(실제 생성 검증, 420개) ·
+> `step6_steer-crosslayer/`(층 교차 주입, 336개).
+> 공통 뼈대(`step`·`rq`·`condition`·`meta`)는 [`../코드_하네스공통.md`](../코드_하네스공통.md) §5~6,
+> 이 값을 만드는 코드는 [`code.md`](code.md) §7.
+
+### 1-1. 먼저 — 각 필드가 무엇을 말하는가
+
+**S와 회복률** — 자는 step3·step5와 같다.
+
+프롬프트 끝에 `"def "`를 붙여 **이름 자리**를 만들고, 그 자리에 올 후보 두 개
+(`removeDuplicates` ↔ `remove_duplicates`)의 로그확률을 재서 뺀다.
+
+> **S = logP(준수 표기 후보) − logP(위반 표기 후보)**  (단위: nat, 양수 = 준수 선호)
+
+| 필드 | 어떤 상태의 점수인가 |
+|---|---|
+| `S_base` | **절벽 바닥** — 지침은 camel인데 앞 코드 12개가 전부 snake. 개입 없음 |
+| `S_clean` | 앞 코드가 **전부 준수**인 상태. 문맥 오염이 없을 때의 **천장** |
+| `S_int` | 절벽 바닥에 **처방을 건 채로** 잰 점수 |
+
+metrics 최상위의 `compliance_preference`에는 `S_int`가 그대로 한 번 더 들어간다(같은 값).
+
+> **`recovery` = (S_int − S_base) / (S_clean − S_base)** — 0 = 바닥 그대로, 1 = 천장 복귀,
+> **>1 = 천장을 지나쳤다.** 이 스텝에서 1을 넘는 값이 흔한데, **되살아난 것이 아니라
+> 지나친 것**이다(→ §4-3). `gap`·`undecidable`·`undecidable_gap_min`의 뜻은 step3·5와 같다
+> (분모 크기 \|S_clean − S_base\|, 1.0 미만이면 판정 불가). step6은 **판정 불가 0개**.
+
+**처방 두 가지가 각각 무엇인가**
+
+| 값 | 무엇을 하는 처방인가 |
+|---|---|
+| `method: "value_add"` | **값 조향(우리 것).** 지정한 층의 잔차에 `strength × (camel−snake 방향)`을 더한다 |
+| `method: "attn_amplify"` | **Spotlight(기존 접근 재구현).** 전 층·전 헤드에서 지침 스팬의 어텐션 비중을 `psi_target`까지 끌어올린다 |
+| `method: "none"` | 무개입 — 하한선 |
+
+> `method`는 **조건에 적힌 이름**이고, `kind`는 **실행 코드가 쓴 이름**이다
+> (`attn_amplify` ↔ `kind: "spotlight"`). 값이 다를 뿐 같은 것을 가리킨다.
+
+**공통 extra**
+
+| 필드 | 무슨 값인가 |
+|---|---|
+| `mode` | `"steer"`(점수) / `"steer_generate"`(실제 생성) |
+| `n_compliant` | 앞 코드 12개 중 준수한 개수. step6은 **전부 0**(절벽 바닥) |
+| `target` | 지침이 요구한 표기(`"camel"`) |
+| `tag` | 실행 묶음 라벨(`"cliff"`) |
+| `layer` | **처방을 주입한 층.** Spotlight는 전 층에 걸리므로 `null` |
+
+**값 조향(`value_add`)에만 있는 필드**
+
+| 필드 | 무슨 값인가 |
+|---|---|
+| `strength` | 방향을 몇 배로 더했나(1·2·4·8). **세기가 셀수록 좋은 게 아니다** — §4-3 |
+| `steer_source` | 방향을 무엇으로 만들었나. `"code_contrast"` = 코드 이름 자리의 camel 잔차 평균 − snake 잔차 평균 |
+| `steer_vector` | 그 방향의 이력 — `n_samples`(쓴 표본 수) · `n_skipped`(이름 자리를 못 찾아 버린 수) · `vec_norm`(방향 벡터의 길이) · `layer`(뽑은 층). **무엇으로 만든 방향인지 파일만 보고 알 수 있게** 남긴다 |
+| `hook_calls` | 잔차에 더하는 훅이 실제로 불린 횟수. **0이면 처방이 안 걸린 것** |
+| `steer_from_layer` · `steer_layer` | **방향을 뽑은 층**(교차 주입 폴더에만 있다). `layer`와 같으면 "맞는 층 → 맞는 층", 다르면 **엉뚱한 층에 주입**한 조건(→ §3-4) |
+
+**Spotlight(`attn_amplify`)에만 있는 필드**
+
+| 필드 | 무슨 값인가 |
+|---|---|
+| `psi_target` | 지침 스팬이 차지하게 만들 **목표 어텐션 비중** ψ(0.1 · 0.3) |
+| `span` | 어디를 밀어 올렸나. `"rule_word"`(규칙문 지시어만 — step5에서 값을 바꾼 자리와 정확히 같다) / `"instruction"`(지침 문장 전체 — 원 논문 정의) |
+| `n_span_tokens` | 그 스팬의 토큰 수 |
+| `attn_span_before` | **개입 전** 그 스팬의 어텐션 비중(이름을 쓰는 마지막 query 행 기준) |
+| `attn_span_after` | **개입 후** 비중. 목표 ψ에 정확히 도달하지 않는 것은 원문 식(5)의 언더슛으로 **정상** |
+| `attn_calls` | 갈아끼운 어텐션 함수가 불린 횟수. **0이면 예외로 죽는다** — 즉 저장된 파일은 전부 실제로 걸렸다는 뜻이고, 이것이 "구현 실패로 진 것 아니냐"는 반박을 막는 기록이다(→ §3-2) |
+
+**생성 검증(`step6_steer-generate`)에만 있는 필드**
+
+| 필드 | 무슨 값인가 |
+|---|---|
+| `compliance_rate`(metrics 최상위) | 생성된 이름이 목표 표기면 1.0 |
+| `generated_text` | 조향을 건 채로 실제 생성한 원문 |
+| `name` | 거기서 뽑아낸 함수 이름 |
+| `notation` | 그 이름의 표기 판정(`camel`/`snake`/**`other`**). `RemoveDuplicates`(PascalCase)는 `other`다 |
+| `compliant` | `notation == target` |
+| `name_ok` | **이름이 멀쩡한가** — 식별자 형식 · 길이 2~40 · 같은 조각 반복 없음(`removeDuplicatesDuplicates`)을 모두 통과했나 |
+| `name_reason` | 안 멀쩡하면 어디서 걸렸는지 |
+| `name_length` | 이름 길이 |
+
+### 1-2. 실제 파일 모양
+
+**점수 회복 (`step6_steer`)**
+
+```jsonc
+"extra": {
+  "mode": "steer", "method": "attn_amplify",     // none | value_add | attn_amplify
+  "span": "rule_word", "psi_target": 0.1,        // Spotlight 전용
+  "strength": null, "steer_source": null,        // 값 조향 전용
+  "layer": null, "kind": "spotlight",
+  "S_clean": 3.929, "S_base": -1.556, "S_int": -3.327,
+  "recovery": -0.323,                            // ← 헤드라인
+  "gap": 5.485, "undecidable": false,
+  "attn_span_before": 0.00080,                   // ★ 개입이 실제로 걸렸는지
+  "attn_span_after":  0.09053,
+  "attn_calls": 64,                              // 0이면 예외였다
+  "n_span_tokens": 3,
+  "n_compliant": 0, "target": "camel", "tag": "cliff"
+}
+```
+
+값 조향이면 `"method": "value_add"`, `"strength": 2`, `"layer": 25`,
+`"hook_calls": …`, `"steer_vector": {"n_samples": 8, "n_skipped": 0, "vec_norm": …}`.
+
+**생성 검증 (`step6_steer-generate`)**
+
+```jsonc
+"metrics": {
+  "compliance_rate": 0.0,
+  "extra": {
+    "mode": "steer_generate", "method": "value_add", "strength": 4, "layer": 25,
+    "generated_text": "def RemoveDuplicates(items):\n    …",
+    "name": "RemoveDuplicates",
+    "notation": "other",          // ← camel이 아니다!
+    "compliant": false,
+    "name_ok": true, "name_reason": "", "name_length": 16
+  }
+}
+```
+
+### 1-3. 읽는 순서
+
+1. `method`(와 `strength` / `psi_target`)로 **어떤 처방의 어떤 세기**인지 확인한다.
+2. **개입이 실제로 걸렸는지 먼저 본다** — Spotlight는 `attn_calls`·`attn_span_before/after`,
+   값 조향은 `hook_calls`. 이 기록이 없으면 "효과 없음"과 "실험 안 됨"을 구분할 수 없다.
+3. `recovery`를 본다. **단, 이 값만으로 처방의 성공을 말하지 않는다.**
+4. **반드시 `step6_steer-generate`의 `compliant`·`notation`·`name_ok`와 함께 본다.**
+   점수가 가장 높은 세기에서 실제 준수율이 0인 구간이 있다(→ §4-3). 점수는 위가 막혀
+   있지 않아 세게 밀수록 계속 오르지만, 그 지점에서 모델은 이미 `RemoveDuplicates`처럼
+   다른 표기로 넘어가 있다.
+5. 집계: `python scripts/step6_summary.py --figs docs/step6/figures`
+
+---
+
+## 2. 무엇을 어떻게 쟀나
 
 출발점은 **절벽 바닥** — 지침은 camelCase인데 앞 코드 12개가 전부 snake다(step1에서 준수율 0).
 여기에 세 가지를 걸고 되살아나는 정도를 잰다.
@@ -25,9 +164,9 @@
 
 ---
 
-## 2. 결과
+## 3. 결과
 
-### 2-1. 처방 비교 (준수 회복)
+### 3-1. 처방 비교 (준수 회복)
 
 ### 한눈에 보기 — 헤드라인
 
@@ -57,7 +196,7 @@
 
 판정 불가 0개(4모델 전부).
 
-### 2-2. Spotlight는 실제로 걸렸다
+### 3-2. Spotlight는 실제로 걸렸다
 
 "구현을 못해서 진 것"이라는 반박을 막기 위해 개입 전·후 어텐션 비중을 기록했다.
 
@@ -71,7 +210,7 @@
 **16개 조건 전부 비중이 올랐다.** 지시어 스팬은 100배 이상 올랐다(0.002 → 0.23).
 목표치에 정확히 도달하지 않는 것은 원문 식(5)의 언더슛으로 정상이다.
 
-### 2-3. 실제로 생성된 이름 — 점수와 어긋난다
+### 3-3. 실제로 생성된 이름 — 점수와 어긋난다
 
 | 모델 | 세기 | 준수율 | 멀쩡한 이름 | 나온 이름 예시 |
 |---|---|---|---|---|
@@ -99,7 +238,7 @@
 
 ![이름 건전성](figures/name_health.png)
 
-### 2-4. 방향은 층을 가리지 않는다
+### 3-4. 방향은 층을 가리지 않는다
 
 맞는 층에서 뽑은 방향을 엉뚱한 층(초반)에 넣어 봤다.
 
@@ -114,7 +253,7 @@
 
 ---
 
-## 3. 해석
+## 4. 해석
 
 **(1) 어텐션을 키우는 접근은 준수를 되살리지 못한다.**
 Spotlight는 지시어 비중을 100배 이상 끌어올렸는데도 회복이 −0.37~0.27이다(Llama 제외).
@@ -155,11 +294,11 @@ Llama는 step5에서 지침 개입이 판정 불가였던 모델이다.
 
 ---
 
-## 4. 이 스텝이 다루지 않는 것
+## 5. 이 스텝이 다루지 않는 것
 
 - **한 이름 한 쌍**에 대한 처방이다. `removeDuplicates` vs `remove_duplicates` 고정.
 - **절벽 바닥 한 지점**에서만 잰다(위반 12/12). 중간 지점은 다루지 않는다.
 - 조향 방향은 **step3와 같은 데이터**에서 유도했다. 독립 표본에서의 일반화는 확인하지 않았다.
 - Spotlight의 자유도(전 쿼리 위치 적용·헤드별 독립 ψ)는 원문에 명시가 없어 우리가 정했다.
-- StableCode의 생성 경로 이상(§3-5)은 원인을 규명하지 않았다.
+- StableCode의 생성 경로 이상(§4-5)은 원인을 규명하지 않았다.
 - 세기 격자가 성기다(1·2·4·8). 최적점이 1과 2 사이일 수 있다.

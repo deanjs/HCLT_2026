@@ -194,6 +194,8 @@ gap = abs(extra["S_clean"] - extra["S_base"]);  undecidable = gap < 1.0
 
 ## 7. 결과 JSON 읽는 법
 
+> **필드 정의(S·전이율·공여가 무슨 값인가)는 [`results.md`](results.md) §1에 있다.** 여기서는 모양만 본다.
+
 **스윕(처치, `step5_instr-cause`)**
 
 ```jsonc

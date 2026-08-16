@@ -299,6 +299,8 @@ if group_size <= 0 or Hq != Hkv * group_size:
 
 ## 6. 결과 JSON 읽는 법
 
+> **필드 정의(무엇을 뜻하는 값인가)는 [`results.md`](results.md) §1에 있다.** 여기서는 모양만 본다.
+
 ```jsonc
 "metrics": {
   "per_layer": {

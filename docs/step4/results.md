@@ -5,7 +5,100 @@
 
 ---
 
-## 1. 무엇을 어떻게 쟀나
+## 1. 결과 JSON 읽는 법
+
+> 파일 하나 = **조건 하나**(모델 × 이름 묶음 × 지침 방향). 경로는
+> `results/step4_instr-observe/<슬러그>.json`.
+> 공통 뼈대(`step`·`rq`·`condition`·`meta`)는 [`../코드_하네스공통.md`](../코드_하네스공통.md) §5~6,
+> 이 값을 만드는 코드는 [`code.md`](code.md) §6.
+
+### 1-1. 먼저 — 각 필드가 무엇을 말하는가
+
+**밑바탕 개념** (관측 장치는 step2와 같다 → [`../step2/results.md`](../step2/results.md) §1-1)
+
+| 말 | 정의 |
+|---|---|
+| **관측 시점** | 프롬프트 끝에 `"def "`를 붙여 만든 **새 이름 자리**. 그 자리 query의 어텐션 **한 줄**만 쓴다 |
+| **구간(span)** | 그 한 줄에서 합칠 토큰 자리들. step4는 **지시어를 역할별로 쪼갠 것**이 핵심이다 |
+| **a (어텐션)** | 그 자리에서 어떤 토큰을 얼마나 보는가. 한 줄의 합이 1이라 구간 값은 곧 비중 |
+| **v (Value)** | 그 토큰이 실어 나르는 **내용 벡터**, `‖v‖`는 그 크기 |
+| **‖a·v‖** | 어텐션 × 내용 크기 = 기여 **상한** 대리치(출력 사영 이전, 상쇄 무시) |
+
+**구간 이름이 각각 무엇인가** — 이 스텝에서 가장 중요한 구분이다.
+
+| 구간 키 | 프롬프트의 어디 | 무엇인가 |
+|---|---|---|
+| `instr_rule_word` | 규칙문 `In this project we generally write function names in camelCase.` | **진짜 명령의 지시어.** 해석에 쓰는 키 |
+| `instr_cand_camel` | 후보열거 `… camelCase or snake_case.` 의 `camelCase` | **역할 대칭 통제** |
+| `instr_cand_snake` | 후보열거의 `snake_case` | 위와 짝 |
+| `instr_target_word` | 프롬프트 **전체**에서 요구 표기어를 전부 | **초판 키.** 규칙문+후보열거가 합쳐져 2회로 부풀려진다 → 해석에 쓰지 않는다(→ §3) |
+| `instr_viol_word` | 프롬프트 전체에서 반대 표기어를 전부 | 초판 키(1회만 등장) |
+| `instruction` | system 메시지 | 지침 **문장 전체** |
+| `code_camel` / `code_snake` | user 코드 블록 | camel/snake 이름 6개씩의 **이름 부분만** |
+
+**per_layer** — 키는 층 번호(문자열), 값은 `<구간>__<지표>`.
+
+| 필드 | 무슨 값인가 | 합인가 평균인가 |
+|---|---|---|
+| `<구간>__attention_weight` | 그 구간에 준 어텐션(query head 평균 후 **구간 합**) | **합** |
+| `<구간>__av_norm` | Σ_j (a_j·‖v_j‖) — 기여 상한 대리치 | **합** |
+| `<구간>__v_norm` | 구간 토큰 ‖v‖의 **토큰당 평균** | **평균** |
+
+> ⚠️ 앞의 둘은 **합**이라 구간이 길수록 커진다. 이 스텝은 지시어(2~4토큰)와
+> 코드 이름 묶음(12~23토큰)을 견주므로 **정규화 없이는 결론이 뒤집힌다**(→ §3).
+
+**extra**
+
+| 필드 | 무슨 값인가 |
+|---|---|
+| `mode` | `"observe"` — 관측만. 개입은 step5 |
+| `target` | 지침이 요구한 표기(`"camel"`/`"snake"`). step4는 **양방향을 다 돌았다** |
+| `instruction_form` | 지침 형태(`"positive"`) |
+| `span_token_counts` | **구간별 토큰 수.** 토큰당 환산의 분모. 없으면 비교 불가 |
+| `group_names` | 코드 구간에 들어간 실제 이름 목록 |
+| `gqa` | `num_attention_heads`(Hq) · `num_key_value_heads`(Hkv) · `group_size`(=Hq÷Hkv). a는 query head별, v는 KV head별이라 곱할 때 필요한 매핑 |
+| `seq_len` | 프롬프트 전체 토큰 수 |
+| `token_detail` | 코드 두 구간의 토큰별 상세(`tokens` = {`t`: 번호, `text`: 글자}, `per_layer["<층>"]` = 그 토큰들의 `a`·`av`·`v` 배열) |
+
+### 1-2. 실제 파일 모양
+
+```jsonc
+"metrics": {
+  "per_layer": {
+    "27": {
+      "instr_rule_word__attention_weight":  0.0121,   // 규칙문 지시어 ← 핵심
+      "instr_rule_word__av_norm":           0.28,
+      "instr_cand_camel__attention_weight": 0.0043,   // 후보열거 camel  ┐ 역할 대칭
+      "instr_cand_snake__attention_weight": 0.0041,   // 후보열거 snake  ┘ (토큰 수는 모델별로 다름)
+      "instr_target_word__attention_weight":0.0164,   // 초판(합침) — 참고용
+      "instr_viol_word__attention_weight":  0.0041,
+      "instruction__attention_weight":      0.0312,   // 지침 문장 전체
+      "code_camel__attention_weight":       0.0184,
+      "code_snake__attention_weight":       0.0231
+    }, …
+  },
+  "extra": {
+    "mode": "observe", "instruction_form": "positive", "target": "camel",
+    "span_token_counts": {"code_camel": 12, "code_snake": 12, "instruction": 37,
+                          "instr_target_word": 4, "instr_viol_word": 2,
+                          "instr_rule_word": 2, "instr_cand_camel": 2,
+                          "instr_cand_snake": 2},        // ★ 없으면 비교 불가
+    "group_names": {...}, "gqa": {...}, "seq_len": 188, "token_detail": {...}
+  }
+}
+```
+
+### 1-3. 읽는 순서
+
+1. `span_token_counts`를 **먼저** 본다. 토큰 수가 다르면 합끼리 비교하지 않는다.
+2. **`instr_rule_word`를 쓴다.** `instr_target_word`는 초판 키다(2회 등장으로 부풀려짐).
+3. 후보열거 두 키(`instr_cand_*`)는 **역할 대칭 통제**다. 토큰 수까지 같은 모델(Qwen·Llama)에서만
+   순수한 대칭이고, DeepSeek·StableCode는 토큰 수가 달라 토큰당으로 봐야 한다.
+4. 표 재생성: `python scripts/observe_per_token.py results/step4_instr-observe`
+
+---
+
+## 2. 무엇을 어떻게 쟀나
 
 지침 문장은 표기어를 두 곳에서 언급한다.
 
@@ -19,7 +112,7 @@
 
 **관측 장치는 step2와 완전히 같다** — 프롬프트 끝에 `"def "`를 붙여 이름이 올 자리를 만들고,
 그 **마지막 위치의 query 한 줄**만 층별로 꺼낸다. 자세한 절차는
-[`../step2/results.md`](../step2/results.md) §1-2~1-4. 다른 것은 **어느 열을 합치느냐**뿐이다.
+[`../step2/results.md`](../step2/results.md) §2-2~2-4. 다른 것은 **어느 열을 합치느냐**뿐이다.
 
 **이 스텝의 구간 5종** (토큰 수는 Qwen 기준)
 
@@ -37,11 +130,11 @@
 - 모델 4개 × 묶음 42개 × 지침 방향 2종 = 336개. 시드 42.
 - **토큰 수로 나눈 값을 쓴다.** 규칙문 지시어는 2~4토큰, 코드 이름 6개는 12~23토큰으로
   길이가 몇 배 다르다. 합끼리 비교하면 긴 쪽이 무조건 이긴다.
-  단, **합과 토큰당 평균은 서로 다른 것을 재는 지표**다(→ §3 해석 주의).
+  단, **합과 토큰당 평균은 서로 다른 것을 재는 지표**다(→ §4 해석 주의).
 
 ---
 
-## 2. 결과
+## 3. 결과
 
 ### 역할별 구간을 전부 그리면
 
@@ -208,7 +301,7 @@ instr_viol_word   = 반대쪽 후보열거만                Qwen 2 = 2   · Dee
 
 ---
 
-## 3. 해석
+## 4. 해석
 
 **(1) 준수 실패는 "지침을 안 봐서"가 아니다.**
 모델은 지침 지시어를 코드 이름보다 토큰당 더 참조하면서도 지침을 어긴다.
@@ -223,7 +316,7 @@ Llama는 중반에 지시어를 보고 후반에는 코드로 돌아간다.
 
 ---
 
-## 4. 이 스텝이 다루지 않는 것
+## 5. 이 스텝이 다루지 않는 것
 
 - **인과가 아니다.** 참조량 관측이다. 그 참조가 행동을 바꾸는지는 step5의 몫이다.
 - 요구 표기어는 규칙문과 후보열거에서 2회, 반대 표기어는 1회 나온다.

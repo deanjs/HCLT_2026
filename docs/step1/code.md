@@ -274,6 +274,8 @@ if p.lang and p.lang != "python":
 
 ## 6. 결과 JSON 읽는 법
 
+> **필드 정의(무엇을 뜻하는 값인가)는 [`results.md`](results.md) §1에 있다.** 여기서는 모양만 본다.
+
 ```jsonc
 "metrics": {
   "compliance_rate": 0.0,              // 첫 함수가 목표 표기면 1.0

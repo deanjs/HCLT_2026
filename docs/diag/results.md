@@ -7,7 +7,89 @@
 
 ---
 
-## 1. 무엇이 걱정이었나
+## 1. 결과 JSON 읽는 법
+
+> 파일 하나 = **조건 하나**(모델 × 이름 묶음 × 치환 대상). 경로는
+> `results/diag_kv-phase/<슬러그>.json`.
+> 공통 뼈대(`step`·`rq`·`condition`·`meta`)는 [`../코드_하네스공통.md`](../코드_하네스공통.md) §5~6,
+> 이 값을 만드는 코드는 [`code.md`](code.md) §6.
+> **점수를 매기지 않는 진단**이라 회복률이 없다 — 대신 "덮어넣은 값이 얼마나 쪼그라들었나"만 본다.
+
+### 1-1. 먼저 — 각 필드가 무엇을 말하는가
+
+**밑바탕 개념**
+
+| 말 | 정의 |
+|---|---|
+| **조각(piece)** | 한 이름이 토크나이저에서 쪼개진 토큰들(`split_config` → `split`·`_`·`config`) |
+| **평균 덮어쓰기** | 공여 쪽 조각들의 KV를 **평균 내어 한 벡터**로 만든 뒤, 덮을 이름의 **모든 조각 자리**에 그대로 넣는 방식 |
+| **줄어듦(shrink)** | `‖조각들의 평균‖ ÷ 조각 노름들의 평균`. **1이면 평균 내도 크기 손해가 없다**(조각들이 같은 방향). 작을수록 서로 지워졌다는 뜻 |
+| **왜 Key만 재면 안 되나** | 서로 다른 조각을 평균 내면 회전(RoPE)이 없어도 조금은 줄어든다. 그래서 **회전이 안 박힌 Value의 같은 값을 기준선**으로 나란히 잰다 |
+
+**per_layer** — 키는 층 번호(문자열)
+
+| 필드 | 무슨 값인가 |
+|---|---|
+| `key_shrink` | **Key의 줄어듦.** 위치 회전이 박혀 있는 쪽 |
+| `value_shrink` | **Value의 줄어듦.** 회전이 없는 **기준선** |
+| `key_minus_value` | 둘의 차이 ← **핵심 값.** **양수 = Key가 오히려 덜 줄었다 = 노름 붕괴 우려 기각.** 음수가 크면 Key만 손해를 본 것 |
+| `key_piece_cosine` | Key 조각들끼리의 평균 코사인 = **방향이 얼마나 모여 있나**(1이면 완전히 같은 방향) |
+| `value_piece_cosine` | Value 조각들의 같은 값 |
+
+**extra**
+
+| 필드 | 무슨 값인가 |
+|---|---|
+| `mode` | `"kv_diagnose"` — 점수를 안 매기는 진단 경로 |
+| `intervention_target` | 어느 치환을 진단했나. `"code"`(step3) / `"instruction"`(step5) |
+| `donor` | 그 치환의 공여(`compliant` / `opposite_instruction`) — **진단 대상 실험과 같은 설정**이라는 확인용 |
+| `position_offsets` | 이름별 **(덮을 자리 평균) − (공여 자리 평균)**. 위치가 어긋난 칸 수 |
+| `position_offset_abs_mean` | 그 절댓값 평균. **위상(회전) 어긋남의 유일한 대리 지표**다 — 위치가 멀수록 회전 위상도 벌어진다 |
+| `donor_piece_counts` | 이름별 **공여 조각 수** |
+| `target_piece_counts` | 이름별 **덮을 자리 조각 수**. 두 수가 다른 것이 평균 덮어쓰기를 쓰는 이유다(1:1로 못 짝지어진다) |
+| `n_substituted_tokens` | 실제로 덮은 자리 수 |
+| `skipped_names` | 자리를 못 찾아 빠진 이름 번호 |
+| `viol_names` · `donor_names` | 덮인 이름 / 덮어넣은 이름 |
+| `S_clean` · `S_base` · `gap` · `undecidable` | 진단 대상 조건이 **애초에 판정 가능한 조건이었는지** 확인용(뜻은 [`../step3/results.md`](../step3/results.md) §1-1과 같다). 이 진단에서는 점수를 쓰지 않는다 |
+
+### 1-2. 실제 파일 모양
+
+```jsonc
+"metrics": {
+  "per_layer": {
+    "17": {
+      "key_shrink":         0.9512,   // Key 줄어듦   (1이면 손해 없음)
+      "value_shrink":       0.8417,   // Value 줄어듦 (회전 없는 기준선)
+      "key_minus_value":    0.1095,   // ← ★ 음수가 크면 Key만 손해
+      "key_piece_cosine":   0.83,     // 조각들 방향이 얼마나 모여 있나
+      "value_piece_cosine": 0.61
+    }, …
+  },
+  "extra": {
+    "mode": "kv_diagnose",
+    "intervention_target": "code",              // 또는 instruction
+    "donor": "compliant",
+    "position_offsets": [-3.5, 12.0, …],        // 덮을 자리 − 공여 자리
+    "position_offset_abs_mean": 8.4,            // 평균 위치 어긋남
+    "donor_piece_counts": [2, 2, 3, …],         // 공여 조각 수
+    "target_piece_counts": [3, 3, 2, …],        // 덮을 자리 수
+    "n_substituted_tokens": 31,
+    "S_clean": …, "S_base": …, "gap": …, "undecidable": false
+  }
+}
+```
+
+### 1-3. 읽는 순서
+
+1. `intervention_target`·`donor`로 **어느 실험의 치환을 진단한 파일인지** 확인한다.
+2. `key_minus_value`를 층별로 본다. **양수면 노름 붕괴 가설 기각**(Key가 더 망가지지 않았다).
+3. **`position_offset_abs_mean`을 반드시 함께 본다.** 위치가 거의 안 어긋난 조건에서만
+   양수가 나온 것이라면 근거가 약해진다. 실제로는 어긋남이 큰 모델에서도 같은 결론이 나왔다(→ §3).
+4. 집계: `python scripts/diag_kv_phase_summary.py results/diag_kv-phase --figs docs/diag/figures`
+
+---
+
+## 2. 무엇이 걱정이었나
 
 캐시에 저장된 **Key에는 그 조각이 문장 몇 번째에 있었는지가 회전 형태로 박혀 있다**(RoPE).
 Value에는 그런 것이 없다. 그런데 우리는 여러 조각을 **평균 내어** 덮어쓴다.
@@ -29,7 +111,7 @@ Key만 재면 판단할 수 없다 — 서로 다른 조각을 평균 내면 회
 
 ---
 
-## 2. 결과 — 우려는 기각된다
+## 3. 결과 — 우려는 기각된다
 
 ![줄어듦](figures/kv_phase_shrink.png)
 
@@ -82,7 +164,7 @@ Qwen·Llama는 **위치가 정확히 일치**한다(camel/snake 토큰 수가 �
 
 ---
 
-## 3. 그래서 무엇이 확정되나
+## 4. 그래서 무엇이 확정되나
 
 **① "어텐션 경로는 표기 정보를 나르지 않는다"를 그대로 주장할 수 있다.**
 step3 재집계에서 Key의 표기 순효과는 −0.005~0.021(내용의 2~11%)이었다.
@@ -102,14 +184,14 @@ Value 내용이 덜 읽힌다. **어텐션과 내용이 상호작용한다**는 
 
 ---
 
-## 4. 남은 것
+## 5. 남은 것
 
 **B(step5 통제)는 여전히 필요하다.** 이 진단은 "Key가 망가졌나"만 답한다.
 step5 전이율(0.42~0.89)에 **거품이 얼마나 꼈는지**는 통제 조건이 있어야 알 수 있다.
 
 ---
 
-## 5. 기록해 둘 것 — 실행 환경
+## 6. 기록해 둘 것 — 실행 환경
 
 이번 실행부터 `meta`가 자동으로 남는다.
 

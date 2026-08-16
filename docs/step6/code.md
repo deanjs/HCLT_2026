@@ -345,6 +345,9 @@ if mode == "steer" or condition.intervention.kind in (VALUE_ADD, ATTENTION_AMPLI
 
 ## 7. 결과 JSON 읽는 법
 
+> **필드 정의(회복률·조향 세기·Spotlight 기록이 무슨 값인가)는 [`results.md`](results.md) §1에 있다.**
+> 여기서는 모양만 본다.
+
 **점수 회복 (`step6_steer`)**
 
 ```jsonc
