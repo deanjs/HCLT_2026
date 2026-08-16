@@ -19,7 +19,8 @@
 
 무엇을 그리나 (모델마다 4장, 단 폭 3.3in)
 ------------------------------------------
-    attention_<모델>   토큰당 어텐션 비중          camel / snake / 지침(참고)
+    spans_<모델>       토큰당 어텐션 — **구간 5종 전부** (프롬프트의 어디를 보나)
+    attention_<모델>   토큰당 어텐션 — 코드 camel / snake / 지침(참고)
     av_<모델>          토큰당 Σa‖v‖ (기여 상한)    camel / snake
     vnorm_<모델>       토큰당 ‖v‖ (내용 크기)      camel / snake
     gap_<모델>         snake − camel 격차          **토큰당(실선) vs 합(점선)** 나란히
@@ -65,6 +66,15 @@ LABEL = {"qwen": "Qwen2.5-Coder-3B", "deepseek": "DeepSeek-Coder-6.7B",
          "llama": "Llama-3.2-3B", "stability": "StableCode-3B"}
 C_CAMEL, C_SNAKE, C_INSTR = "tab:blue", "tab:red", "0.55"
 
+# 프롬프트의 어디를 보는가 — step2가 저장한 구간 5종 전부
+SPANS = (
+    ("code_camel",        C_CAMEL,     "-",  "code: camel names"),
+    ("code_snake",        C_SNAKE,     "-",  "code: snake names"),
+    ("instruction",       "0.35",      ":",  "instruction (whole)"),
+    ("instr_target_word", "tab:green", "--", "instr: required word"),
+    ("instr_viol_word",   "tab:purple", "--", "instr: opposite word"),
+)
+
 
 def ci95(xs: list[float]) -> tuple[float, float]:
     if not xs:
@@ -102,9 +112,8 @@ def _band(ax, layers, series, color, label, style="-"):
     pts = [ci95(series[L]) for L in layers]
     mu = [a for a, _ in pts]
     ax.plot(layers, mu, color=color, label=label, linestyle=style)
-    if style == "-":
-        ax.fill_between(layers, [a - b for a, b in pts], [a + b for a, b in pts],
-                        color=color, alpha=0.18, linewidth=0)
+    ax.fill_between(layers, [a - b for a, b in pts], [a + b for a, b in pts],
+                    color=color, alpha=0.15 if style == "-" else 0.10, linewidth=0)
     return mu
 
 
@@ -174,6 +183,18 @@ def main() -> None:
         ax.margins(y=0.10); ax.grid(alpha=0.25, linewidth=0.4)
         _nonneg(ax); _legend_above(ax, ncol=3)
         _save(fig, out, f"attention_{m}")
+
+        # ①-b 구간 5종 전부 — "프롬프트의 어디를 보나"
+        fig, ax = plt.subplots(figsize=(3.3, 2.8))
+        for span, color, style, lab in SPANS:
+            if not per[m][layers[0]].get(span):
+                continue
+            _band(ax, layers, dict(zip(layers, A(span, "attention_weight"))),
+                  color, lab, style=style)
+        ax.set_xlabel("Layer"); ax.set_ylabel("Attention per token")
+        ax.margins(y=0.10); ax.grid(alpha=0.25, linewidth=0.4)
+        _nonneg(ax); _legend_above(ax, ncol=2)
+        _save(fig, out, f"spans_{m}")
 
         # ② 토큰당 기여 상한 Σa‖v‖
         fig, ax = plt.subplots(figsize=(3.3, 2.45))

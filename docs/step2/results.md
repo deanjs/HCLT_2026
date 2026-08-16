@@ -116,6 +116,35 @@ def split_config(value):
 
 ## 2. 결과
 
+### 프롬프트의 어디를 보나 — 구간 5종 전부
+
+step2는 구간을 **5개** 저장했다. 한 장에 모두 그리면 "이름을 쓰려는 순간 모델이
+프롬프트의 어디에 주의를 두는가"가 한눈에 보인다.
+
+| Qwen2.5-Coder-3B | DeepSeek-Coder-6.7B |
+|---|---|
+| ![qwen](figures/spans_qwen.png) | ![deepseek](figures/spans_deepseek.png) |
+| **Llama-3.2-3B (범용)** | **StableCode-3B** |
+| ![llama](figures/spans_llama.png) | ![stability](figures/spans_stability.png) |
+
+**코드가 솟는 층과 지시어가 솟는 층이 다르다.**
+
+| 모델 | 코드 봉우리 | 지시어 봉우리 | 그 층에서 지시어÷코드 |
+|---|---|---|---|
+| Qwen | L25 | **L27** | 5.9배 |
+| DeepSeek | L30 | **L17** | 6.9배 |
+| StableCode | L0 | **L19** | 12.7배 |
+| Llama (범용) | L14 | L13 | 1.4배 |
+
+Qwen의 **L27**, DeepSeek의 **L17**, StableCode의 **L19** — 세 층 모두
+**step4의 관측 봉우리이자 step5의 인과 봉우리와 같다.** step2 그림에서 이미 그 층이
+드러나 있었는데, 지금까지 코드 두 선만 그려 놓아 보이지 않았다.
+
+> ⚠️ `instr_target_word`·`instr_viol_word`는 **초판 키**다. 규칙문과 후보열거를 **합쳐**
+> 세므로 요구 표기어가 2회, 반대 표기어가 1회 등장한다(Qwen 4토큰 vs 2토큰).
+> 토큰당 평균이 등장 횟수 차이를 상쇄하지만 **역할 분리는 안 된다** —
+> 그 분리는 step4의 `instr_rule_word`가 한다. 여기서는 **참고용**으로만 본다.
+
 **어텐션 — 층별 (토큰당 평균)**
 
 | Qwen2.5-Coder-3B | DeepSeek-Coder-6.7B |
