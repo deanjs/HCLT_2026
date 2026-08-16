@@ -41,6 +41,40 @@
 파랑 = 표기 정보가 든 값을 덮었을 때, 회색 = 정보가 없는 값을 덮었을 때(거품).
 **빨간 화살표가 실제로 옮겨간 몫**이다. 오른쪽(어텐션)은 두 막대가 같은 높이 — 아무것도 안 옮겨졌다.
 
+### 거품이 얼마나 큰가 — 원값·거품·순효과
+
+> **용어**(→ [`../개념_트랜스포머와_개입.md`](../개념_트랜스포머와_개입.md) §0)
+> **공여** = 덮어넣을 값을 어디서 떠 왔는가 · **거품** = 통제에서 나오는 값,
+> 즉 "덮어쓰는 행위 자체"가 만든 가짜 효과 · **순효과** = 처치 − 통제
+
+논문용 그림은 **순효과만** 보여준다. 그 값이 나오기까지 원값이 얼마였고 거품이
+얼마였는지를 층별로 보면 이렇다.
+
+| Qwen2.5-Coder-3B | DeepSeek-Coder-6.7B |
+|---|---|
+| ![qwen](figures/bubble_qwen.png) | ![deepseek](figures/bubble_deepseek.png) |
+| **Llama-3.2-3B (범용)** | **StableCode-3B** |
+| ![llama](figures/bubble_llama.png) | ![stability](figures/bubble_stability.png) |
+
+**봉우리 층에서 거품이 원값의 34~49%다.**
+
+| 모델 | 봉우리 층 | 처치 원값 | 거품(통제) | 순효과 | 거품 비중 |
+|---|---|---|---|---|---|
+| Qwen | L25 | 0.536 | 0.261 | **0.253** | 49% |
+| DeepSeek | L20 | 0.200 | 0.083 | **0.125** | 42% |
+| Llama | L15 | 0.583 | 0.234 | **0.358** | 40% |
+| StableCode | L18 | 0.255 | 0.088 | **0.189** | 34% |
+
+공여 3종의 원값을 따로 보면 — **무관한 camel과 무관한 snake의 차이**가 곧 표기 몫이다.
+
+| Qwen2.5-Coder-3B | DeepSeek-Coder-6.7B |
+|---|---|
+| ![qwen](figures/donors_qwen.png) | ![deepseek](figures/donors_deepseek.png) |
+| **Llama-3.2-3B (범용)** | **StableCode-3B** |
+| ![llama](figures/donors_llama.png) | ![stability](figures/donors_stability.png) |
+
+---
+
 ### 논문용 그림
 
 **층별 표기 순효과** (모델마다 세로 눈금 범위가 달라 따로 그린다)
