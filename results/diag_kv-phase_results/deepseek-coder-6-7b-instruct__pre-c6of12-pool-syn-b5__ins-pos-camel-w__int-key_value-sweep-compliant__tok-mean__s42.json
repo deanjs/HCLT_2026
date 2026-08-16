@@ -1,0 +1,340 @@
+{
+  "step": "diag_kv-phase",
+  "rq": "RQ2/RQ3(방법 점검)",
+  "prediction": "어텐션 줄어듦이 내용 줄어듦보다 뚜렷이 작으면 방법 편향",
+  "created_at": "2026-08-16T05:07:09.124107+00:00",
+  "condition": {
+    "model": {
+      "name": "deepseek-ai/deepseek-coder-6.7b-instruct",
+      "family": "deepseek",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 6,
+      "n_functions": 12,
+      "composition": "pool",
+      "source": "synthetic",
+      "repo_lang": null,
+      "repo_file": null,
+      "pool_block": 5,
+      "lang": null
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "camel",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "key_value",
+      "layers": "sweep",
+      "donor": "compliant",
+      "amplify": null,
+      "target": "code"
+    },
+    "seed": 42,
+    "task_ids": [],
+    "tag": null,
+    "token_unit": "mean"
+  },
+  "metrics": {
+    "compliance_rate": null,
+    "compliance_preference": null,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {
+      "0": {
+        "key_shrink": 0.9650065104166666,
+        "value_shrink": 0.7723795572916666,
+        "key_minus_value": 0.192626953125,
+        "key_piece_cosine": 0.8724772135416666,
+        "value_piece_cosine": 0.24483235677083334
+      },
+      "1": {
+        "key_shrink": 0.9934895833333334,
+        "value_shrink": 0.79931640625,
+        "key_minus_value": 0.19417317708333337,
+        "key_piece_cosine": 0.975830078125,
+        "value_piece_cosine": 0.32666015625
+      },
+      "2": {
+        "key_shrink": 0.983154296875,
+        "value_shrink": 0.7469075520833334,
+        "key_minus_value": 0.23624674479166663,
+        "key_piece_cosine": 0.9371744791666666,
+        "value_piece_cosine": 0.16431681315104166
+      },
+      "3": {
+        "key_shrink": 0.9471842447916666,
+        "value_shrink": 0.7296549479166666,
+        "key_minus_value": 0.217529296875,
+        "key_piece_cosine": 0.8064778645833334,
+        "value_piece_cosine": 0.110015869140625
+      },
+      "4": {
+        "key_shrink": 0.9493815104166666,
+        "value_shrink": 0.749267578125,
+        "key_minus_value": 0.20011393229166663,
+        "key_piece_cosine": 0.815673828125,
+        "value_piece_cosine": 0.16544596354166666
+      },
+      "5": {
+        "key_shrink": 0.9535319010416666,
+        "value_shrink": 0.7752278645833334,
+        "key_minus_value": 0.17830403645833326,
+        "key_piece_cosine": 0.8291829427083334,
+        "value_piece_cosine": 0.24434407552083334
+      },
+      "6": {
+        "key_shrink": 0.9514973958333334,
+        "value_shrink": 0.7781575520833334,
+        "key_minus_value": 0.17333984375,
+        "key_piece_cosine": 0.8213704427083334,
+        "value_piece_cosine": 0.24936930338541666
+      },
+      "7": {
+        "key_shrink": 0.9527180989583334,
+        "value_shrink": 0.7781575520833334,
+        "key_minus_value": 0.174560546875,
+        "key_piece_cosine": 0.8257649739583334,
+        "value_piece_cosine": 0.2555745442708333
+      },
+      "8": {
+        "key_shrink": 0.963134765625,
+        "value_shrink": 0.7650553385416666,
+        "key_minus_value": 0.19807942708333337,
+        "key_piece_cosine": 0.8640950520833334,
+        "value_piece_cosine": 0.21311442057291666
+      },
+      "9": {
+        "key_shrink": 0.9475911458333334,
+        "value_shrink": 0.7910970052083334,
+        "key_minus_value": 0.156494140625,
+        "key_piece_cosine": 0.8072102864583334,
+        "value_piece_cosine": 0.2943115234375
+      },
+      "10": {
+        "key_shrink": 0.9503580729166666,
+        "value_shrink": 0.7737630208333334,
+        "key_minus_value": 0.17659505208333326,
+        "key_piece_cosine": 0.8165690104166666,
+        "value_piece_cosine": 0.23903401692708334
+      },
+      "11": {
+        "key_shrink": 0.955810546875,
+        "value_shrink": 0.7787272135416666,
+        "key_minus_value": 0.17708333333333337,
+        "key_piece_cosine": 0.83642578125,
+        "value_piece_cosine": 0.2542317708333333
+      },
+      "12": {
+        "key_shrink": 0.95654296875,
+        "value_shrink": 0.7805989583333334,
+        "key_minus_value": 0.17594401041666663,
+        "key_piece_cosine": 0.83935546875,
+        "value_piece_cosine": 0.2561848958333333
+      },
+      "13": {
+        "key_shrink": 0.96435546875,
+        "value_shrink": 0.7826334635416666,
+        "key_minus_value": 0.18172200520833337,
+        "key_piece_cosine": 0.8675130208333334,
+        "value_piece_cosine": 0.2642415364583333
+      },
+      "14": {
+        "key_shrink": 0.9568684895833334,
+        "value_shrink": 0.7980143229166666,
+        "key_minus_value": 0.15885416666666674,
+        "key_piece_cosine": 0.8397623697916666,
+        "value_piece_cosine": 0.3116251627604167
+      },
+      "15": {
+        "key_shrink": 0.961669921875,
+        "value_shrink": 0.8204752604166666,
+        "key_minus_value": 0.14119466145833337,
+        "key_piece_cosine": 0.8582356770833334,
+        "value_piece_cosine": 0.3825276692708333
+      },
+      "16": {
+        "key_shrink": 0.9671223958333334,
+        "value_shrink": 0.8384602864583334,
+        "key_minus_value": 0.128662109375,
+        "key_piece_cosine": 0.877197265625,
+        "value_piece_cosine": 0.4402262369791667
+      },
+      "17": {
+        "key_shrink": 0.961669921875,
+        "value_shrink": 0.8067220052083334,
+        "key_minus_value": 0.15494791666666663,
+        "key_piece_cosine": 0.8570963541666666,
+        "value_piece_cosine": 0.33740234375
+      },
+      "18": {
+        "key_shrink": 0.962158203125,
+        "value_shrink": 0.7972005208333334,
+        "key_minus_value": 0.16495768229166663,
+        "key_piece_cosine": 0.8592122395833334,
+        "value_piece_cosine": 0.3104654947916667
+      },
+      "19": {
+        "key_shrink": 0.96435546875,
+        "value_shrink": 0.814453125,
+        "key_minus_value": 0.14990234375,
+        "key_piece_cosine": 0.8671875,
+        "value_piece_cosine": 0.362548828125
+      },
+      "20": {
+        "key_shrink": 0.9619140625,
+        "value_shrink": 0.81298828125,
+        "key_minus_value": 0.14892578125,
+        "key_piece_cosine": 0.85791015625,
+        "value_piece_cosine": 0.3555908203125
+      },
+      "21": {
+        "key_shrink": 0.9544270833333334,
+        "value_shrink": 0.8040364583333334,
+        "key_minus_value": 0.150390625,
+        "key_piece_cosine": 0.8308919270833334,
+        "value_piece_cosine": 0.3272298177083333
+      },
+      "22": {
+        "key_shrink": 0.9530436197916666,
+        "value_shrink": 0.8147786458333334,
+        "key_minus_value": 0.13826497395833326,
+        "key_piece_cosine": 0.8260091145833334,
+        "value_piece_cosine": 0.3581949869791667
+      },
+      "23": {
+        "key_shrink": 0.956298828125,
+        "value_shrink": 0.81591796875,
+        "key_minus_value": 0.140380859375,
+        "key_piece_cosine": 0.8380533854166666,
+        "value_piece_cosine": 0.3636881510416667
+      },
+      "24": {
+        "key_shrink": 0.9469401041666666,
+        "value_shrink": 0.7867024739583334,
+        "key_minus_value": 0.16023763020833326,
+        "key_piece_cosine": 0.803955078125,
+        "value_piece_cosine": 0.2692057291666667
+      },
+      "25": {
+        "key_shrink": 0.9527994791666666,
+        "value_shrink": 0.7945149739583334,
+        "key_minus_value": 0.15828450520833326,
+        "key_piece_cosine": 0.8247884114583334,
+        "value_piece_cosine": 0.2945149739583333
+      },
+      "26": {
+        "key_shrink": 0.9484049479166666,
+        "value_shrink": 0.78759765625,
+        "key_minus_value": 0.16080729166666663,
+        "key_piece_cosine": 0.808837890625,
+        "value_piece_cosine": 0.27203369140625
+      },
+      "27": {
+        "key_shrink": 0.9493001302083334,
+        "value_shrink": 0.7753092447916666,
+        "key_minus_value": 0.17399088541666674,
+        "key_piece_cosine": 0.8124186197916666,
+        "value_piece_cosine": 0.23191324869791666
+      },
+      "28": {
+        "key_shrink": 0.9544270833333334,
+        "value_shrink": 0.7888997395833334,
+        "key_minus_value": 0.16552734375,
+        "key_piece_cosine": 0.8309733072916666,
+        "value_piece_cosine": 0.2761433919270833
+      },
+      "29": {
+        "key_shrink": 0.952880859375,
+        "value_shrink": 0.7900390625,
+        "key_minus_value": 0.162841796875,
+        "key_piece_cosine": 0.82568359375,
+        "value_piece_cosine": 0.28131103515625
+      },
+      "30": {
+        "key_shrink": 0.95556640625,
+        "value_shrink": 0.7872721354166666,
+        "key_minus_value": 0.16829427083333337,
+        "key_piece_cosine": 0.8350423177083334,
+        "value_piece_cosine": 0.2707316080729167
+      },
+      "31": {
+        "key_shrink": 0.9551595052083334,
+        "value_shrink": 0.794677734375,
+        "key_minus_value": 0.16048177083333337,
+        "key_piece_cosine": 0.8334147135416666,
+        "value_piece_cosine": 0.2948201497395833
+      }
+    },
+    "extra": {
+      "mode": "kv_diagnose",
+      "intervention_target": "code",
+      "donor": "compliant",
+      "target": "camel",
+      "S_clean": 4.249352766026277,
+      "S_base": -0.09979955741437152,
+      "gap": 4.349152323440649,
+      "undecidable": false,
+      "position_offsets": [
+        0.5,
+        1.5,
+        2.5,
+        3.5,
+        4.5,
+        5.5
+      ],
+      "position_offset_abs_mean": 3.0,
+      "donor_piece_counts": [
+        3,
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "target_piece_counts": [
+        4,
+        3,
+        3,
+        3,
+        3,
+        3
+      ],
+      "n_substituted_tokens": 19,
+      "skipped_names": [],
+      "viol_names": [
+        "split_packet",
+        "filter_matrix",
+        "format_vector",
+        "expand_request",
+        "compute_cursor",
+        "resolve_index"
+      ],
+      "donor_names": [
+        "splitPacket",
+        "filterMatrix",
+        "formatVector",
+        "expandRequest",
+        "computeCursor",
+        "resolveIndex"
+      ]
+    }
+  },
+  "meta": {
+    "python": "3.12.13",
+    "git_sha": "04363ce80bdaf14da048ddf456c6b1228aac938e",
+    "git_dirty": true,
+    "torch": "2.11.0+cu128",
+    "transformers": "5.13.1",
+    "accelerate": "1.14.0",
+    "gpu": "Tesla T4"
+  }
+}
