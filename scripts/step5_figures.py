@@ -78,10 +78,17 @@ def ci95(xs):
     return st.mean(xs), 1.96 * st.stdev(xs) / math.sqrt(len(xs))
 
 
+def ctrl_folder() -> str:
+    """통제 폴더를 고른다 — 전 층 스윕이 있으면 그쪽. 두 폴더를 섞지 않는다."""
+    sweep = Path("results/step5_instr-cause-control-sweep")
+    return sweep.name if sweep.is_dir() and any(sweep.glob("*.json")) \
+        else "step5_instr-cause-control"
+
+
 def load():
     """모델 → 공여 → 방식 → 층 → {(묶음,방향): 전이율}. 스윕 실행분만."""
     cube = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(dict))))
-    for folder in ("step5_instr-cause", "step5_instr-cause-control"):
+    for folder in ("step5_instr-cause", ctrl_folder()):
         for p in sorted(Path("results", folder).glob("*.json")):
             r = json.loads(p.read_text(encoding="utf-8"))
             ex = r["metrics"]["extra"]
@@ -133,19 +140,27 @@ def main() -> None:
             continue
         layers = sorted(cube[m][TREAT]["value"])
 
-        # ① 처치 층 곡선 + 통제는 **봉우리 층 한 점**이라 수평선으로 표시
-        Lc = sorted(cube[m][SELF]["value"])[0]
+        ctrl_layers = sorted(cube[m][SELF]["value"])
+        full = len(ctrl_layers) > 1          # 통제가 전 층에 있는가
+
+        # ① 처치 층 곡선 + 통제(전 층이면 곡선, 한 층뿐이면 수평선)
+        Lc = ctrl_layers[0]
         fig, ax = plt.subplots(figsize=(3.3, 2.7))
         _band(ax, layers, {L: list(cube[m][TREAT]["value"][L].values()) for L in layers},
               COLOR[TREAT], LABEL[TREAT], "-")
         _band(ax, layers, {L: list(cube[m][TREAT]["key"][L].values()) for L in layers},
               "0.45", "opposite instr., Key only", ":")
         for d in (SELF, NEG):
-            if cube[m][d]["value"].get(Lc):
+            if full:
+                Ls = sorted(cube[m][d]["value"])
+                _band(ax, Ls, {L: list(cube[m][d]["value"][L].values()) for L in Ls},
+                      COLOR[d], LABEL[d], "--")
+            elif cube[m][d]["value"].get(Lc):
                 v = st.mean(list(cube[m][d]["value"][Lc].values()))
                 ax.axhline(v, color=COLOR[d], linestyle="--", linewidth=1.0,
                            label=f"{LABEL[d]} @L{Lc}")
-        ax.axvline(Lc, color="tab:red", linewidth=0.8, linestyle=":")
+        if not full:
+            ax.axvline(Lc, color="tab:red", linewidth=0.8, linestyle=":")
         ax.axhline(0, color="black", linewidth=0.5)
         ax.set_xlabel("Layer"); ax.set_ylabel("Transfer rate (raw)")
         ax.margins(y=0.10); ax.grid(alpha=0.25, linewidth=0.4)
@@ -154,8 +169,36 @@ def main() -> None:
         fig.savefig(out / f"sweep_{m}.png", bbox_inches="tight")
         plt.close(fig)
 
-        # 통제가 있는 층(= 봉우리 층) 하나
-        Lp = sorted(cube[m][SELF]["value"])[0]
+        # ② 층별 순효과 곡선 — 통제가 전 층에 있을 때만 만들 수 있다
+        if full:
+            common = [L for L in layers if L in cube[m][SELF]["value"]]
+            fig, ax = plt.subplots(figsize=(3.3, 2.7))
+            for kind, col, sty, lab in (("value", COLOR[TREAT], "-", "net effect · Value"),
+                                        ("key", "0.45", ":", "net effect · Key")):
+                series = {}
+                for L in common:
+                    tk, ck = cube[m][TREAT][kind][L], cube[m][SELF][kind][L]
+                    ks = set(tk) & set(ck)
+                    series[L] = [tk[k] - ck[k] for k in ks]
+                _band(ax, common, series, col, lab, sty)
+            ax.axhline(0, color="black", linewidth=0.5)
+            ax.set_xlabel("Layer"); ax.set_ylabel("Net transfer rate")
+            ax.margins(y=0.10); ax.grid(alpha=0.25, linewidth=0.4)
+            _legend_above(ax, ncol=1)
+            fig.savefig(out / f"net_{m}.pdf", bbox_inches="tight")
+            fig.savefig(out / f"net_{m}.png", bbox_inches="tight")
+            plt.close(fig)
+
+        # 순효과를 낼 수 있는 층 — 전 층이면 순효과 최대 층, 아니면 통제가 있는 그 한 층
+        if full:
+            cand = [L for L in layers if L in cube[m][SELF]["value"]]
+            def _net(L):
+                tk, ck = cube[m][TREAT]["value"][L], cube[m][SELF]["value"][L]
+                ks = set(tk) & set(ck)
+                return st.mean([tk[k] - ck[k] for k in ks]) if ks else float("-inf")
+            Lp = max(cand, key=_net)
+        else:
+            Lp = Lc
         nets = {}
         for kind in ("value", "key"):
             tk, ck = cube[m][TREAT][kind][Lp], cube[m][SELF][kind][Lp]
@@ -168,8 +211,14 @@ def main() -> None:
               f"{st.mean(nets['value']):>13.3f}{st.mean(nets['key']):>12.3f}"
               f"{len(nets['value']):>5}")
 
-    print(f"\n그림 → {out}/  (모델당 sweep 1장)")
-    print("통제는 봉우리 층 한 곳에서만 돌아 수평선으로 그렸다 — 층별 순효과 곡선은 만들 수 없다.")
+    folder = ctrl_folder()
+    print(f"\n통제 폴더: results/{folder}")
+    if folder.endswith("-sweep"):
+        print(f"그림 → {out}/  (모델당 sweep·net 2장)")
+        print("통제가 전 층에 있으므로 봉우리 층은 **순효과 최대 층**이다(더 이상 유일한 후보가 아니다).")
+    else:
+        print(f"그림 → {out}/  (모델당 sweep 1장)")
+        print("통제는 봉우리 층 한 곳에서만 돌아 수평선으로 그렸다 — 층별 순효과 곡선은 만들 수 없다.")
 
 
 if __name__ == "__main__":

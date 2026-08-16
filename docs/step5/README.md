@@ -19,3 +19,25 @@ figures/       그림 (explain_* = 이해용 · 나머지 = 논문용, pdf+png)
 ```
 
 결과 원본: `results/step5_instr-cause/` 336개 · `step5_instr-cause-control/` 2016개 — **불변**(CLAUDE.md §6). 집계·작도는 `scripts/`의 스크립트로만 한다.
+
+## 진행 중 — 통제 전 층 스윕
+
+통제가 **봉우리 층 한 곳**에서만 돌아 층별 순효과 곡선이 없다(→ `results.md` §3).
+같은 통제 조건을 전 층에서 다시 재는 노트북이 있다:
+
+```
+notebooks/step5_instr-cause-control-sweep.ipynb     모델 하나씩 4번, 모델당 20~40분
+저장 → results/step5_instr-cause-control-sweep/     모델당 168개, 합 672개
+```
+
+**폴더를 가른 이유.** 짝짓기 키가 `(모델·묶음·방향·공여)`라 층을 담지 않는다. 한 폴더에
+섞으면 층 구성이 다른 두 실행분이 조용히 서로를 덮는다. `step5_net_effect.py`는 이제
+그런 중복을 만나면 **예외를 던지고**, 통제 폴더는 새 폴더가 있으면 자동으로 그쪽을 쓴다
+(어느 쪽을 썼는지 출력 첫머리에 찍는다).
+
+돌린 뒤:
+
+```bash
+python scripts/step5_net_effect.py    # 통제 폴더 자동 선택 · 층별 순효과
+python scripts/step5_figures.py       # 통제가 전 층이면 net_<모델>.png 가 추가로 나온다
+```

@@ -34,7 +34,11 @@ step3(`step3_net_effect.py`)는 이미 이 방식이다. 이 스크립트가 ste
 
 쓰는 법
 -------
-    python scripts/step5_net_effect.py [results/step5_instr-cause] [--gap-min 1.0]
+    python scripts/step5_net_effect.py [처치폴더] [통제폴더] [--gap-min 1.0]
+
+  통제 폴더를 생략하면 **전 층 스윕 폴더가 있으면 그것을**, 없으면 기존 단일 층 폴더를 쓴다.
+  어느 쪽을 썼는지는 출력 첫머리에 찍힌다. **두 폴더를 섞어 읽으면 예외를 던진다** —
+  짝짓기 키에 층이 없어 같은 조건이 조용히 덮이기 때문이다.
 """
 
 from __future__ import annotations
@@ -54,7 +58,17 @@ CTRL_LABEL = {"control_self": "자기 통제(self)", "control_unrelated_word": "
 DEFAULT_GAP_MIN = 1.0
 
 TREAT_DIR = "results/step5_instr-cause"
-CTRL_DIR = "results/step5_instr-cause-control"
+# 통제는 폴더가 둘이다. 새 폴더(전 층 스윕)가 있으면 그쪽을 쓴다 — 어느 쪽을 썼는지 반드시 찍는다.
+CTRL_DIR_1LAYER = "results/step5_instr-cause-control"        # 봉우리 층 한 곳 (구)
+CTRL_DIR_SWEEP = "results/step5_instr-cause-control-sweep"   # 전 층 (신)
+
+
+def default_ctrl_dir() -> Path:
+    """통제 폴더를 고른다. 두 폴더를 섞지 않는다 — 층이 달라 같은 키로 덮인다."""
+    sweep = Path(CTRL_DIR_SWEEP)
+    if sweep.is_dir() and any(sweep.glob("*.json")):
+        return sweep
+    return Path(CTRL_DIR_1LAYER)
 
 
 def load_sweeps(root: Path) -> dict:
@@ -77,6 +91,19 @@ def load_sweeps(root: Path) -> dict:
         gap = ex.get("gap")
         if gap is None:
             gap = abs(ex["S_clean"] - ex["S_base"])
+        if key in out:
+            # 조용한 덮어쓰기 금지(§7). 키에 층이 없으므로, 같은 조건을 다른 층 구성으로
+            # 돌린 실행분이 한 폴더에 섞이면 뒤에 읽힌 쪽이 앞을 지운다 — 결과를 보고도
+            # 어느 쪽 숫자인지 알 수 없게 된다.
+            prev = sorted(out[key]["per_layer"])
+            now = sorted(per_layer)
+            raise SystemExit(
+                f"같은 조건이 두 번 있다: {key}\n"
+                f"  이미 읽은 층 {len(prev)}개 {prev[:3]}… · 새로 읽은 층 {len(now)}개 {now[:3]}…\n"
+                f"  파일: {p}\n"
+                f"  통제 폴더를 섞어 읽고 있다. 한 폴더만 지정한다"
+                f"({CTRL_DIR_1LAYER} 또는 {CTRL_DIR_SWEEP})."
+            )
         out[key] = {"per_layer": per_layer, "gap": gap}
     return out
 
@@ -134,7 +161,7 @@ def main() -> None:
     if "--gap-min" in sys.argv:
         gap_min = float(sys.argv[sys.argv.index("--gap-min") + 1])
     treat_dir = Path(args[0]) if args else Path(TREAT_DIR)
-    ctrl_dir = Path(args[1]) if len(args) > 1 else Path(CTRL_DIR)
+    ctrl_dir = Path(args[1]) if len(args) > 1 else default_ctrl_dir()
 
     treat = load_sweeps(treat_dir)
     ctrl = load_sweeps(ctrl_dir)
@@ -145,7 +172,13 @@ def main() -> None:
     print("step5 순효과 — 묶음끼리 짝지어 뺀 뒤 신뢰구간을 낸다 (판정 불가 기준 "
           f"|S_반대 − S_기준| < {gap_min:g} 제외)")
     print("=" * 100)
-    print(f"처치 스윕 {len(treat)}개 · 통제 스윕 {len(ctrl)}개\n")
+    n_ctrl_layers = {len(v["per_layer"]) for v in ctrl.values()}
+    print(f"처치 {treat_dir}  {len(treat)}개")
+    print(f"통제 {ctrl_dir}  {len(ctrl)}개 · 조건당 층 {sorted(n_ctrl_layers)}")
+    if max(n_ctrl_layers, default=0) <= 1:
+        print("  ⚠️ 통제가 층 하나뿐이다 — 층별 순효과 곡선은 만들 수 없고,"
+              " 아래 봉우리 층은 '선택'이 아니라 '유일한 후보'다.")
+    print()
 
     summary: dict = {}
     for model in MODELS:
