@@ -223,8 +223,12 @@ gap = abs(extra["S_clean"] - extra["S_base"]);  undecidable = gap < 1.0
 집계:
 
 ```bash
-python scripts/step5_reaggregate.py     # 방향 분리 · 중앙값 · 임계 민감도 · 순효과
+python scripts/step5_reaggregate.py results/step5_instr-cause   # 방향 분리 · 중앙값 · 임계 민감도
+python scripts/step5_net_effect.py                              # 순효과 + 짝지음 95% 신뢰구간
 ```
+
+**순효과는 반드시 짝지어 계산한다.** 처치와 통제는 같은 42묶음·같은 방향에서 돌았으므로
+묶음마다 차이를 먼저 내면 묶음 난이도가 상쇄된다. 평균끼리 빼면 차이의 신뢰구간을 얻을 수 없다.
 
 **방향을 분리해서 보는 이유** — camel→snake와 snake→camel은 난이도가 다르다.
 합쳐서 평균 내면 한쪽이 천장에 닿아 있는 것이 가려진다.
