@@ -1,0 +1,98 @@
+{
+  "step": "step6_steer-crosslayer",
+  "rq": "RQ2/RQ3",
+  "prediction": null,
+  "created_at": "2026-08-16T07:39:26.507066+00:00",
+  "condition": {
+    "model": {
+      "name": "deepseek-ai/deepseek-coder-6.7b-instruct",
+      "family": "deepseek",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 0,
+      "n_functions": 12,
+      "composition": "pool",
+      "source": "synthetic",
+      "repo_lang": null,
+      "repo_file": null,
+      "pool_block": 7,
+      "lang": null
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "camel",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "value_add",
+      "layers": [
+        5
+      ],
+      "donor": null,
+      "amplify": null,
+      "kinds": null,
+      "strength": 1.0,
+      "steer_source": "code_contrast",
+      "steer_layer": 20,
+      "span": null,
+      "target": "code"
+    },
+    "seed": 42,
+    "task_ids": [],
+    "tag": "cliff",
+    "token_unit": "all"
+  },
+  "metrics": {
+    "compliance_rate": null,
+    "compliance_preference": -1.6942169037647545,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {},
+    "extra": {
+      "mode": "steer",
+      "method": "value_add",
+      "span": null,
+      "strength": 1.0,
+      "psi_target": null,
+      "steer_source": "code_contrast",
+      "steer_layer": 20,
+      "n_compliant": 0,
+      "target": "camel",
+      "tag": "cliff",
+      "S_clean": 3.349136637261836,
+      "S_base": -1.3833644274709513,
+      "S_int": -1.6942169037647545,
+      "recovery": -0.06568460778811361,
+      "gap": 4.732501064732787,
+      "undecidable": false,
+      "undecidable_gap_min": 1.0,
+      "layer": 5,
+      "kind": "value_add",
+      "hook_calls": 2,
+      "steer_vector": {
+        "n_samples": 8,
+        "n_skipped": 0,
+        "vec_norm": 30.484819412231445,
+        "layer": 20
+      },
+      "steer_from_layer": 20
+    }
+  },
+  "meta": {
+    "python": "3.12.13",
+    "git_sha": "223ea10e69949a457256334303356359967ec9ab",
+    "git_dirty": true,
+    "torch": "2.11.0+cu128",
+    "transformers": "5.13.1",
+    "accelerate": "1.14.0",
+    "gpu": "Tesla T4"
+  }
+}

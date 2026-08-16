@@ -1,0 +1,85 @@
+{
+  "step": "step6_steer-generate",
+  "rq": "RQ2/RQ3",
+  "prediction": null,
+  "created_at": "2026-08-16T07:14:55.468391+00:00",
+  "condition": {
+    "model": {
+      "name": "unsloth/Llama-3.2-3B-Instruct",
+      "family": "llama",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 0,
+      "n_functions": 12,
+      "composition": "pool",
+      "source": "synthetic",
+      "repo_lang": null,
+      "repo_file": null,
+      "pool_block": 0,
+      "lang": null
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "camel",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "value_add",
+      "layers": [
+        15
+      ],
+      "donor": null,
+      "amplify": null,
+      "kinds": null,
+      "strength": 2.0,
+      "steer_source": "code_contrast",
+      "steer_layer": null,
+      "span": null,
+      "target": "code"
+    },
+    "seed": 42,
+    "task_ids": [],
+    "tag": "cliff",
+    "token_unit": "all"
+  },
+  "metrics": {
+    "compliance_rate": 1.0,
+    "compliance_preference": null,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {},
+    "extra": {
+      "mode": "steer_generate",
+      "method": "value_add",
+      "layer": 15,
+      "strength": 2.0,
+      "psi_target": null,
+      "span": null,
+      "target": "camel",
+      "generated_text": "def  removeDuplicates(value):\n    seen = set()\n    return [x for x in value if not (x in seen or",
+      "name": "removeDuplicates",
+      "notation": "camel",
+      "compliant": true,
+      "name_ok": true,
+      "name_reason": "",
+      "name_length": 16
+    }
+  },
+  "meta": {
+    "python": "3.12.13",
+    "git_sha": "223ea10e69949a457256334303356359967ec9ab",
+    "git_dirty": true,
+    "torch": "2.11.0+cu128",
+    "transformers": "5.13.1",
+    "accelerate": "1.14.0",
+    "gpu": "Tesla T4"
+  }
+}

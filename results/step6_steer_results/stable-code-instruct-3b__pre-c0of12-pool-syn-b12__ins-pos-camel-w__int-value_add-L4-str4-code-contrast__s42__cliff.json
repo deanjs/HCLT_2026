@@ -1,0 +1,95 @@
+{
+  "step": "step6_steer",
+  "rq": "RQ2/RQ3",
+  "prediction": "값 조향은 회복, Spotlight는 거의 회복 없음",
+  "created_at": "2026-08-16T07:20:23.377545+00:00",
+  "condition": {
+    "model": {
+      "name": "stabilityai/stable-code-instruct-3b",
+      "family": "stability",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 0,
+      "n_functions": 12,
+      "composition": "pool",
+      "source": "synthetic",
+      "repo_lang": null,
+      "repo_file": null,
+      "pool_block": 12,
+      "lang": null
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "camel",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "value_add",
+      "layers": [
+        4
+      ],
+      "donor": null,
+      "amplify": null,
+      "kinds": null,
+      "strength": 4.0,
+      "steer_source": "code_contrast",
+      "span": null,
+      "target": "code"
+    },
+    "seed": 42,
+    "task_ids": [],
+    "tag": "cliff",
+    "token_unit": "all"
+  },
+  "metrics": {
+    "compliance_rate": null,
+    "compliance_preference": 18.396034898128164,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {},
+    "extra": {
+      "mode": "steer",
+      "method": "value_add",
+      "span": null,
+      "strength": 4.0,
+      "psi_target": null,
+      "steer_source": "code_contrast",
+      "n_compliant": 0,
+      "target": "camel",
+      "tag": "cliff",
+      "S_clean": 1.4597976099465768,
+      "S_base": -6.174983025993413,
+      "S_int": 18.396034898128164,
+      "recovery": 3.218300445785684,
+      "gap": 7.63478063593999,
+      "undecidable": false,
+      "undecidable_gap_min": 1.0,
+      "layer": 4,
+      "kind": "value_add",
+      "hook_calls": 2,
+      "steer_vector": {
+        "n_samples": 8,
+        "n_skipped": 0,
+        "vec_norm": 1.5825448036193848,
+        "layer": 4
+      }
+    }
+  },
+  "meta": {
+    "python": "3.12.13",
+    "git_sha": "24ce893158faccea48c2ef48f8d33144bbab8f35",
+    "git_dirty": true,
+    "torch": "2.11.0+cu128",
+    "transformers": "5.13.1",
+    "accelerate": "1.14.0",
+    "gpu": "Tesla T4"
+  }
+}
