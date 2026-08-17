@@ -1,0 +1,83 @@
+{
+  "step": "step6_steer-generate",
+  "rq": "RQ2/RQ3",
+  "prediction": null,
+  "created_at": "2026-08-17T03:20:34.350327+00:00",
+  "condition": {
+    "model": {
+      "name": "unsloth/Llama-3.2-3B-Instruct",
+      "family": "llama",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 0,
+      "n_functions": 12,
+      "composition": "pool",
+      "source": "synthetic",
+      "repo_lang": null,
+      "repo_file": null,
+      "pool_block": 20,
+      "lang": null
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "camel",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "attn_amplify",
+      "layers": "all",
+      "donor": null,
+      "amplify": 0.1,
+      "kinds": null,
+      "strength": null,
+      "steer_source": null,
+      "steer_layer": null,
+      "span": "instruction",
+      "target": "code"
+    },
+    "seed": 42,
+    "task_ids": [],
+    "tag": "cliff",
+    "token_unit": "all"
+  },
+  "metrics": {
+    "compliance_rate": 0.0,
+    "compliance_preference": null,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {},
+    "extra": {
+      "mode": "steer_generate",
+      "method": "attn_amplify",
+      "layer": null,
+      "strength": null,
+      "psi_target": 0.1,
+      "span": "instruction",
+      "target": "camel",
+      "generated_text": "def  remove_duplicates(input_list):\n    \"\"\"\n    Removes duplicate items from a list while preserving the original order.\n\n    Args:\n       ",
+      "name": "remove_duplicates",
+      "notation": "snake",
+      "compliant": false,
+      "name_ok": true,
+      "name_reason": "",
+      "name_length": 17
+    }
+  },
+  "meta": {
+    "python": "3.12.13",
+    "git_sha": "c5eea35d3c437d628380b58cd31ba326cdb44d5d",
+    "git_dirty": true,
+    "torch": "2.11.0+cu128",
+    "transformers": "5.13.1",
+    "accelerate": "1.14.0",
+    "gpu": "Tesla T4"
+  }
+}
