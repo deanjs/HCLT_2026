@@ -241,6 +241,9 @@ def explain_step6():
     by = defaultdict(lambda: defaultdict(list))
     for r in gen:
         ex = r["metrics"]["extra"]
+        # ⚠️ 값 조향·무개입만. Spotlight는 strength가 없어 `or 0.0`으로 무개입 칸에 섞인다.
+        if ex["method"] not in ("none", "value_add"):
+            continue
         by[r["condition"]["model"]["family"]][ex["strength"] or 0.0].append(ex)
     score = defaultdict(dict)
     for r in rows:
@@ -253,9 +256,11 @@ def explain_step6():
     for ax, m in zip(axes, ("qwen", "deepseek", "llama")):
         xs2 = sorted(by[m])
         ax.plot(xs2, [st.mean([e["compliant"] for e in by[m][x]]) for x in xs2],
-                marker="o", ms=7, color="tab:blue", linewidth=2.5, label="ACTUAL compliance")
+                marker="o", ms=7, color="tab:blue", linewidth=2.5,
+                label="ACTUAL compliance — was the generated name really camelCase?")
         ax.plot(xs2, [st.mean([e["name_ok"] for e in by[m][x]]) for x in xs2],
-                marker="s", ms=6, color="tab:green", linestyle="--", label="name still valid")
+                marker="s", ms=6, color="tab:green", linestyle="--",
+                label="name still valid — not gibberish (identifier · length · no repeat)")
         ax2 = ax.twinx()
         sx = sorted(score[m])
         ax2.plot(sx, [st.mean(score[m][s]) for s in sx], marker="^", ms=6,
@@ -271,9 +276,11 @@ def explain_step6():
     # 세 판 공통이므로 그림 아래에 한 줄로 뺀다. 주황(오른쪽 축) 항목도 함께 넣는다.
     h1, l1 = axes[0].get_legend_handles_labels()
     h2 = [Line2D([], [], marker="^", ms=6, color="tab:orange", alpha=0.85)]
-    fig.legend(h1 + h2, l1 + ["preference-score recovery (right axis)"],
-               frameon=False, fontsize=10, ncol=3,
-               loc="lower center", bbox_to_anchor=(0.5, -0.02))
+    fig.legend(h1 + h2,
+               l1 + ["preference-score recovery (RIGHT axis) — the teacher-forced score, "
+                     "not real generation"],
+               frameon=False, fontsize=10, ncol=1,
+               loc="lower center", bbox_to_anchor=(0.5, -0.16))
     fig.suptitle("step6  The score keeps rising while real compliance collapses "
                  "— why generation had to be checked", fontsize=13)
     save(fig, Path("docs/step6/figures/explain_score_vs_real.png"))

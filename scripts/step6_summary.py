@@ -301,33 +301,36 @@ def _figures(rec, gen, PEAK, out: Path, steer=()):
 
     if not gen:
         return
+    # ⚠️ **값 조향과 무개입만** 담는다. strength로 묶으면 strength가 없는 Spotlight가
+    #    `or 0.0` 때문에 무개입 칸에 섞여 세기 0 지점이 오염된다(실제로 그랬다).
+    #    Spotlight 비교는 compliance_by_method가 담당한다.
     by = defaultdict(lambda: defaultdict(list))
     for r in gen:
         ex = r["metrics"]["extra"]
-        by[r["condition"]["model"]["family"]][ex["strength"] or 0.0].append(ex)
-    fig, ax = plt.subplots(figsize=(3.3, 2.6))
-    for m, color in zip(MODELS, ("tab:blue", "tab:orange", "tab:green", "tab:red")):
-        if not by[m]:
+        if ex["method"] not in ("none", "value_add"):
             continue
-        xs = sorted(by[m])
-        ax.plot(xs, [st.mean([e["compliant"] for e in by[m][x]]) for x in xs],
-                marker="o", ms=3, color=color, label=LABEL[m].split("-")[0])
-        ax.plot(xs, [st.mean([e["name_ok"] for e in by[m][x]]) for x in xs],
-                marker="s", ms=3, color=color, linestyle="--", alpha=0.6)
-    # 선 종류가 무엇을 뜻하는지 별도 범례 — 없으면 점선 4개가 설명 없이 떠 있다
-    style_keys = [Line2D([], [], color="0.3", marker="o", ms=3, linestyle="-",
-                         label="compliance (solid)"),
-                  Line2D([], [], color="0.3", marker="s", ms=3, linestyle="--",
-                         label="name intact (dashed)")]
-    ax.set_xlabel("Steering strength"); ax.set_ylabel("Rate")
-    ax.set_ylim(-0.05, 1.10); ax.grid(alpha=0.25, linewidth=0.4)
-    # 범례 둘을 **축 밖(위)** 에 두 줄로 합친다. 선 종류 범례를 축 안(lower left)에 두면
-    # 바닥에 깔리는 StableCode 곡선이 글자를 뚫고 지나간다 — 실제로 겹쳤다.
-    model_keys, model_labels = ax.get_legend_handles_labels()
-    ax.legend(handles=model_keys + style_keys,
-              labels=model_labels + [h.get_label() for h in style_keys],
-              frameon=False, fontsize=6.5, ncol=3, columnspacing=0.9, handlelength=1.3,
-              loc="lower center", bbox_to_anchor=(0.5, 1.01), borderaxespad=0.0)
+        by[r["condition"]["model"]["family"]][ex["strength"] or 0.0].append(ex)
+
+    # 실선·점선을 한 축에 겹치면 8개 선이 뒤엉킨다 → **판을 둘로 나눈다.**
+    fig, axes = plt.subplots(1, 2, figsize=(7.0, 2.2), sharey=True)
+    panels = [("Compliance (correct notation + on task)", compliant_real),
+              ("Name intact (identifier · length · no repeat)",
+               lambda e: float(e["name_ok"]))]
+    for ax, (title, fn) in zip(axes, panels):
+        for m, color in zip(MODELS, ("tab:blue", "tab:orange", "tab:green", "tab:red")):
+            if not by[m]:
+                continue
+            xs = sorted(by[m])
+            ax.plot(range(len(xs)), [st.mean([fn(e) for e in by[m][x]]) for x in xs],
+                    marker="o", ms=3.5, color=color, label=LABEL[m].split("-")[0])
+        ax.set_xticks(range(len(xs))); ax.set_xticklabels([f"{x:g}" for x in xs], fontsize=7)
+        ax.set_xlabel("Steering strength", fontsize=7.5)
+        ax.set_title(title, fontsize=7.5)
+        ax.set_ylim(-0.05, 1.10); ax.grid(alpha=0.25, linewidth=0.4)
+    axes[0].set_ylabel("Rate")
+    axes[0].legend(frameon=False, fontsize=6.5, ncol=4, handlelength=1.2,
+                   columnspacing=1.0, loc="lower center", bbox_to_anchor=(1.03, 1.14),
+                   borderaxespad=0.0)
     fig.savefig(out / "name_health.pdf", bbox_inches="tight")
     fig.savefig(out / "name_health.png", bbox_inches="tight")
     plt.close(fig)
