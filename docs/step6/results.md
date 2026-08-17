@@ -524,11 +524,37 @@ Spotlight 16개 조건(4모델 × 스팬 2 × ψ 2) 중 **15개가 정확히 0.0
 "들쭉날쭉하니 인과가 아니지 않느냐"는 반문이 나올 수 있다. 아니다. **어디로 갔는지**를 보면
 방향은 끝까지 맞았다(→ §3-3a `dose_response`).
 
-| 세기 | 나온 이름 (Qwen) | 판정 |
-|---|---|---|
-| 0 | `remove_duplicates` | snake — 위반 |
-| 1 · 2 | `removeDuplicates` | **camel — 준수** |
-| 4 · 8 | `RemoveDuplicates` | `other` — **첫 글자까지 대문자로 넘어감** |
+**생성된 이름 21개가 어느 표기였나 — 구성비**
+
+| 세기 | | snake (위반) | camel (준수) | other | 대표 이름 |
+|---|---|---|---|---|---|
+| **0** (무개입) | Qwen | **1.00** | 0.00 | 0.00 | `remove_duplicates` |
+| | DeepSeek | **1.00** | 0.00 | 0.00 | `remove_duplicates` |
+| | Llama | **1.00** | 0.00 | 0.00 | `remove_duplicates` |
+| **1** | Qwen | 0.00 | **1.00** | 0.00 | `removeDuplicates` |
+| | DeepSeek | 0.14 | **0.86** | 0.00 | `removeDuplicates` |
+| | Llama | 0.00 | **1.00** | 0.00 | `removeDuplicates` |
+| **2** | Qwen | 0.00 | **1.00** | 0.00 | `removeDuplicates` |
+| | DeepSeek | 0.00 | **0.95** | 0.05 | `removeDuplicates` |
+| | Llama | 0.00 | **1.00** | 0.00 | `removeDuplicates` |
+| **4** | Qwen | 0.00 | 0.00 | **1.00** | `RemoveDuplicates` |
+| | DeepSeek | 0.00 | **0.76** | 0.24 | `removeDuplicates` |
+| | Llama | 0.00 | **1.00** | 0.00 | `removeDuplicates` |
+| **8** | Qwen | 0.00 | 0.00 | **1.00** | `RemoveDuplicates` |
+| | DeepSeek | 0.00 | 0.00 | **1.00** | 이름 없음 |
+| | Llama | 0.00 | 0.00 | **1.00** | `_Printachticker` |
+
+**snake 칸을 세로로 보면 된다.** 무개입에서 1.00인데 **세기 1부터 끝까지 0.00이다**
+(DeepSeek 세기1의 0.14만 예외). StableCode는 §4-5의 측정 장치 문제로 뺐다.
+
+세기가 오르면서 Qwen이 지나간 길:
+
+```
+   세기 0 :  remove_duplicates    ← snake (위반)
+   세기 1 :  removeDuplicates     ← camel (준수) ✅
+   세기 2 :  removeDuplicates     ← camel (준수) ✅
+   세기 4 :  RemoveDuplicates     ← 첫 글자까지 대문자. camel 방향으로 **더 갔다**
+```
 
 - **무개입에서 위반이 100%인데, 세기 1을 걸자마자 4모델 전부 위반이 사라진다.**
   개입이 행동을 실제로 바꾼다.
