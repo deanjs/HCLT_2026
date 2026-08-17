@@ -366,6 +366,61 @@ def _figures(rec, gen, PEAK, out: Path, steer=()):
     fig.savefig(out / "compliance_by_method.png", bbox_inches="tight")
     plt.close(fig)
 
+    # ── 용량-반응: 세기를 올리면 이름이 어디로 가나 ──────────────────────
+    # step6의 핵심을 한 장에. 개입만 하면 snake(위반)가 사라지고(=인과), 세게 밀면
+    # camel을 지나 Pascal로 넘어간다(=과잉). 회복률은 그동안 계속 오른다(=용량계로 못 쓴다).
+    import re as _re
+    PASCAL = _re.compile(r"^[A-Z][a-z0-9]*(?:[A-Z][a-z0-9]*)+$")
+
+    def _bucket(ex):
+        n, nota = ex["name"], ex["notation"]
+        if nota == "snake":
+            return 0                                   # 위반
+        if nota == "camel" and on_task(n):
+            return 1                                   # 준수
+        if n and PASCAL.match(n):
+            return 2                                   # camel 과잉(PascalCase)
+        return 3                                       # 그 외 · 이름 없음
+
+    S = [0, 1, 2, 4, 8]
+    BUCK = [("violating (snake)", "tab:red"), ("compliant (camel)", "tab:blue"),
+            ("overshoot (Pascal)", "tab:orange"), ("broken / none", "0.7")]
+    dose = defaultdict(lambda: defaultdict(list))
+    for r in gen:
+        ex = r["metrics"]["extra"]
+        if ex["method"] not in ("none", "value_add"):
+            continue
+        dose[r["condition"]["model"]["family"]][ex["strength"] or 0.0].append(_bucket(ex))
+
+    fig, axes = plt.subplots(1, 4, figsize=(7.0, 2.0), sharey=True)
+    for ax, m in zip(axes, MODELS):
+        bottom = [0.0] * len(S)
+        for b, (lab, col) in enumerate(BUCK):
+            ys = [(dose[m][s].count(b) / len(dose[m][s])) if dose[m].get(s) else 0.0 for s in S]
+            ax.bar(range(len(S)), ys, 0.72, bottom=bottom, color=col,
+                   label=lab if m == MODELS[0] else None)
+            bottom = [a + b2 for a, b2 in zip(bottom, ys)]
+        ax2 = ax.twinx()
+        ys = [st.mean(rec[m][f"값조향 맞는층 세기{s:g}"])
+              if s and rec[m].get(f"값조향 맞는층 세기{s:g}") else 0.0 for s in S]
+        ax2.plot(range(len(S)), ys, color="black", marker="o", ms=2.5, linewidth=1.0)
+        ax2.set_ylim(0, 4.6)
+        ax2.tick_params(axis="y", labelsize=5.5)
+        if m != MODELS[-1]:
+            ax2.set_yticklabels([])
+        else:
+            ax2.set_ylabel("score recovery", fontsize=6)
+        ax.set_xticks(range(len(S))); ax.set_xticklabels([str(s) for s in S], fontsize=6.5)
+        ax.set_title(LABEL[m].split("-")[0], fontsize=7)
+        ax.set_xlabel("Steering strength", fontsize=7)
+    axes[0].set_ylabel("Share of generated names")
+    axes[0].set_ylim(0, 1.0)
+    fig.legend(frameon=False, fontsize=6.2, ncol=4, loc="lower center",
+               bbox_to_anchor=(0.5, 1.0), columnspacing=1.2, handlelength=1.2)
+    fig.savefig(out / "dose_response.pdf", bbox_inches="tight")
+    fig.savefig(out / "dose_response.png", bbox_inches="tight")
+    plt.close(fig)
+
     # ── 회복률 vs 실제 준수율 산점도 ────────────────────────────────────
     # "점수가 준수율을 대변하지 않는다"를 한 장으로. 두 축이 짝지어진 조건만 찍는다.
     sc_by, gn_by = defaultdict(list), defaultdict(list)
