@@ -190,6 +190,16 @@ class ModelHandle:
         with torch.no_grad():
             out = self.model(**enc, output_attentions=True, use_cache=True)
         attentions = out.attentions            # tuple[L] each [1, Hq, seq, seq]
+        # 조용한 실패 금지: sdpa/flash 어텐션은 output_attentions=True를 **경고만 찍고 무시**해
+        # attentions를 빈 튜플/None으로 준다. 그러면 per_layer가 빈 채로 저장돼
+        # "관측했는데 값이 없다"와 "관측이 아예 안 됐다"가 구분되지 않는다.
+        if not attentions or attentions[0] is None:
+            impl = getattr(self.model.config, "_attn_implementation", "?")
+            raise RuntimeError(
+                f"어텐션 가중치가 돌아오지 않았다 (attn_implementation={impl!r}). "
+                "관측에는 eager가 필요하다 — load_model(spec, attn_implementation='eager')로 "
+                "다시 불러온다. sdpa/flash는 output_attentions=True를 경고만 찍고 무시한다."
+            )
         values = _value_cache(out.past_key_values)  # list[L] each [1, Hkv, seq, d]
 
         # 4) 층별 집계 — 마지막 query 행과 ‖v‖만 리스트로 옮겨 순수 함수 호출.
