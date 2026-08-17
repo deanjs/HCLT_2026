@@ -33,7 +33,7 @@ plt.rcParams.update({"font.family": "NanumGothic", "font.size": 9,
 
 MODELS = ["qwen", "deepseek", "llama", "stability"]
 NAME = {"qwen": "Qwen2.5\nCoder-3B", "deepseek": "DeepSeek\nCoder-6.7B",
-        "llama": "Llama-3.2\n3B (범용)", "stability": "StableCode\n3B"}
+        "llama": "Llama-3.2-3B\n(general)", "stability": "StableCode\n3B"}
 # 값 조향을 넣은 층 — 라벨에 반드시 적는다. "후반 층"이라고만 쓰면 어디인지 알 수 없다
 LAYER = {"qwen": 25, "deepseek": 20, "llama": 15, "stability": 18}
 TASK = ("remove", "duplicat", "dedup", "uniq", "distinct")
@@ -97,16 +97,16 @@ def main() -> None:
     xs = range(len(MODELS))
     w = 0.26
     panels = [
-        (axes[0], 1, "왼쪽 — 선호 점수 회복률",
-         "후보 두 개의 확률만 읽은 값. 1 = 오염이 없던 상태까지 회복"),
-        (axes[1], 2, "오른쪽 — 실제 준수율",
-         "조향을 건 채 이름을 생성시켜 센 값. 표기 맞음 × 과제 맞음"),
+        (axes[0], 1, "Preference-score recovery",
+         "Log-prob of two fixed candidates. 1.0 = back to the clean-context level"),
+        (axes[1], 2, "Actual compliance rate",
+         "Names generated under steering. Correct notation AND on-task"),
     ]
     for ax, idx, title, sub in panels:
         for off, (key, col, lab) in enumerate((
-                ("none", NONE, "무개입"),
-                ("value", GOOD, "값 조향 (우리)"),
-                ("spot", BAD, "Spotlight (기존)"))):
+                ("none", NONE, "No intervention"),
+                ("value", GOOD, "Value steering (ours)"),
+                ("spot", BAD, "Spotlight (prior work)"))):
             vals = [D[m][key][idx] if key != "none" else D[m][key][idx - 1] for m in MODELS]
             ax.bar([x + (off - 1) * w for x in xs], vals, w, color=col, label=lab)
             for x, v in zip(xs, vals):
@@ -115,7 +115,7 @@ def main() -> None:
         ax.axhline(0, color="black", lw=0.8)
         if idx == 1:
             ax.axhline(1.0, color=HAIR, lw=1, ls="--")
-            ax.text(-0.55, 1.06, "천장 1.0", fontsize=7, color=MUT)
+            ax.text(-0.52, 1.06, "ceiling 1.0", fontsize=7, color=MUT)
         ax.set_xticks(list(xs))
         ax.set_xticklabels([NAME[m] for m in MODELS], fontsize=8)
         ax.set_title(title, fontsize=10.5, pad=18)
@@ -126,18 +126,11 @@ def main() -> None:
     axes[1].set_ylim(-0.03, 1.15)
     axes[0].set_ylim(-0.55, 3.25)
 
-    # 어긋나는 곳 두 군데를 직접 가리킨다 — 이 그림의 요점이다
-    axes[0].annotate("4모델 중 1위", xy=(3, D["stability"]["value"][1]), xytext=(1.55, 2.55),
-                     fontsize=7.6, color=BAD,
-                     arrowprops=dict(arrowstyle="->", color=BAD, lw=1))
-    axes[1].annotate("그런데 꼴찌", xy=(3, D["stability"]["value"][2]), xytext=(2.05, 0.45),
-                     fontsize=7.6, color=BAD,
-                     arrowprops=dict(arrowstyle="->", color=BAD, lw=1))
-
     h, l = axes[0].get_legend_handles_labels()
     fig.legend(h, l, frameon=False, ncol=3, loc="lower center", bbox_to_anchor=(0.5, -0.02))
     lay = " · ".join(f"{NAME[m].split(chr(10))[0]} L{LAYER[m]}" for m in MODELS)
-    fig.text(0.5, 0.055, f"값 조향을 넣은 층 — {lay}   ·   조건은 모델마다 준수율이 가장 높은 것",
+    fig.text(0.5, 0.055,
+             f"Steering layer — {lay}   ·   per model, the condition with the highest compliance is shown",
              ha="center", fontsize=7.4, color=MUT)
     fig.tight_layout(rect=(0, 0.11, 1, 1))
     for ext in ("png", "pdf"):
