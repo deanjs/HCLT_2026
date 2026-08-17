@@ -152,10 +152,16 @@ def fig3_instruction(out: Path):
         m = r["condition"]["model"]["family"]
         cnt = r["metrics"]["extra"].get("span_token_counts", {})
         for L, v in r["metrics"]["per_layer"].items():
-            for span in ("instr_rule_word", "code_camel"):
-                x, n = v.get(f"{span}__attention_weight"), cnt.get(span)
-                if x is not None and n:
-                    obs[m][int(L)][span].append(x / n)          # 토큰당 평균
+            # 지침 쪽은 규칙문 지시어 하나, 코드 쪽은 **camel + snake 12개 전부**.
+            # camel만 쓰면 코드 쪽이 절반만 잡혀 "지침을 더 본다"가 부풀려진다
+            # (본문에 싣는 6~20배 비율은 12개 전부로 계산한다 — 같은 자여야 한다).
+            x, n = v.get("instr_rule_word__attention_weight"), cnt.get("instr_rule_word")
+            if x is not None and n:
+                obs[m][int(L)]["instr_rule_word"].append(x / n)
+            xs = [(v.get(f"{sp}__attention_weight"), cnt.get(sp))
+                  for sp in ("code_camel", "code_snake")]
+            if all(a is not None and b for a, b in xs):
+                obs[m][int(L)]["code"].append(sum(a for a, _ in xs) / sum(b for _, b in xs))
     cause = defaultdict(lambda: defaultdict(list))
     for r in load("step5_instr-cause"):
         m = r["condition"]["model"]["family"]
@@ -167,10 +173,10 @@ def fig3_instruction(out: Path):
     for m in MODELS:
         layers = sorted(obs[m])
         instr = [st.mean(obs[m][L]["instr_rule_word"]) for L in layers]
-        code = [st.mean(obs[m][L]["code_camel"]) for L in layers]
+        code = [st.mean(obs[m][L]["code"]) for L in layers]
         fig, ax = plt.subplots(figsize=(3.3, 2.3))
         ax.plot(layers, instr, color="tab:blue", label="Instruction word")
-        ax.plot(layers, code, color="tab:orange", label="Code names")
+        ax.plot(layers, code, color="tab:orange", label="Code names (all 12)")
         peak = max(cause[m], key=lambda L: st.mean(cause[m][L]))
         ax.axvline(peak, color="tab:red", linewidth=0.9, linestyle="--")
         ax.set_xlabel("Layer")
