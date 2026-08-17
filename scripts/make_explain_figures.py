@@ -24,6 +24,7 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
 matplotlib.rcParams.update({
     "font.family": "DejaVu Sans",
@@ -216,12 +217,19 @@ def explain_step6():
         vals = [max(rec[m][key]) if key == "spot" and rec[m][key]
                 else (st.mean(rec[m][key]) if rec[m][key] else float("nan")) for m in MODELS]
         ax.bar([i + off * width for i in xs], vals, width, color=color, label=lab)
-    ax.axhline(1.0, color="tab:red", linestyle=":", linewidth=1.5)
-    ax.text(3.35, 1.03, "clean-context ceiling", color="tab:red", fontsize=9)
+    # 천장선 설명은 **범례 항목으로** 넣는다. 축 안에 글자로 띄우면 막대에 겹치거나
+    # 오른쪽 축 밖으로 삐져나간다(실제로 잘렸다).
+    ax.axhline(1.0, color="tab:red", linestyle=":", linewidth=1.5,
+               label="clean-context ceiling")
     ax.axhline(0, color="black", linewidth=0.8)
     ax.set_xticks(list(xs))
     ax.set_xticklabels([LABEL[m] for m in MODELS], fontsize=9)
     ax.set_ylabel("Compliance recovery")
+    # 범례가 막대에 닿지 않도록 위쪽 여유를 먼저 만든다(가장 높은 막대의 1.35배).
+    top = max(v for key in ("none", "spot", "steer") for m in MODELS
+              for v in ([max(rec[m][key])] if key == "spot" and rec[m][key]
+                        else ([st.mean(rec[m][key])] if rec[m][key] else [0.0])))
+    ax.set_ylim(0, top * 1.35)
     ax.legend(loc="upper left", fontsize=9)
     ax.grid(axis="y", alpha=0.3)
     ax.set_title("step6  Pushing the content works. Boosting attention does not.")
@@ -259,7 +267,13 @@ def explain_step6():
         ax.set_title(LABEL[m], fontsize=11)
         ax.grid(alpha=0.3)
     axes[0].set_ylabel("rate")
-    axes[0].legend(loc="lower left", fontsize=9)
+    # 범례를 축 안에 두면 곡선이 글자를 뚫는다(왼쪽 아래는 파란 준수율 곡선의 출발점).
+    # 세 판 공통이므로 그림 아래에 한 줄로 뺀다. 주황(오른쪽 축) 항목도 함께 넣는다.
+    h1, l1 = axes[0].get_legend_handles_labels()
+    h2 = [Line2D([], [], marker="^", ms=6, color="tab:orange", alpha=0.85)]
+    fig.legend(h1 + h2, l1 + ["preference-score recovery (right axis)"],
+               frameon=False, fontsize=10, ncol=3,
+               loc="lower center", bbox_to_anchor=(0.5, -0.02))
     fig.suptitle("step6  The score keeps rising while real compliance collapses "
                  "— why generation had to be checked", fontsize=13)
     save(fig, Path("docs/step6/figures/explain_score_vs_real.png"))

@@ -183,10 +183,13 @@ def _figures(rec, gen, PEAK, out: Path):
         ax.axhline(1, color="tab:red", linewidth=0.7, linestyle=":")
         ax.set_xscale("log", base=2); ax.set_xticks(S); ax.set_xticklabels([str(s) for s in S])
         ax.set_xlabel("Steering strength"); ax.set_ylabel("Compliance recovery")
-        ax.margins(y=0.25); ax.grid(alpha=0.25, linewidth=0.4)
-        ax.legend(frameon=False, loc="upper left", handlelength=1.4)
-        fig.tight_layout(pad=0.4)
-        fig.savefig(out / f"strength_{m}.pdf"); fig.savefig(out / f"strength_{m}.png")
+        ax.margins(y=0.10); ax.grid(alpha=0.25, linewidth=0.4)
+        # 범례는 **축 밖(위)** 에 둔다. 안에 두면 곡선이 글자를 뚫고 지나간다
+        # (Llama·StableCode에서 실제로 겹쳤다). bbox_inches="tight"로 저장해야 안 잘린다.
+        ax.legend(frameon=False, loc="lower center", bbox_to_anchor=(0.5, 1.01),
+                  borderaxespad=0.0, ncol=1, handlelength=1.4)
+        fig.savefig(out / f"strength_{m}.pdf", bbox_inches="tight")
+        fig.savefig(out / f"strength_{m}.png", bbox_inches="tight")
         plt.close(fig)
 
     if not gen:
@@ -211,15 +214,15 @@ def _figures(rec, gen, PEAK, out: Path):
                          label="name intact (dashed)")]
     ax.set_xlabel("Steering strength"); ax.set_ylabel("Rate")
     ax.set_ylim(-0.05, 1.10); ax.grid(alpha=0.25, linewidth=0.4)
-    # 모델 범례는 **그림 좌표계**에 둔다(축 밖 범례는 tight_layout이 계산에 넣지 못해 잘린다).
-    # subplots_adjust로 위쪽 자리를 먼저 비워 둔 뒤 fig.legend를 얹는다.
-    fig.subplots_adjust(top=0.86, left=0.17, right=0.97, bottom=0.17)
-    fig.legend(frameon=False, fontsize=6.5, ncol=4, columnspacing=0.9, handlelength=1.3,
-               loc="upper center", bbox_to_anchor=(0.55, 1.0))
-    ax.legend(handles=style_keys, frameon=False, fontsize=6.5, loc="lower left",
-              handlelength=1.6)
-    fig.savefig(out / "name_health.pdf")
-    fig.savefig(out / "name_health.png")
+    # 범례 둘을 **축 밖(위)** 에 두 줄로 합친다. 선 종류 범례를 축 안(lower left)에 두면
+    # 바닥에 깔리는 StableCode 곡선이 글자를 뚫고 지나간다 — 실제로 겹쳤다.
+    model_keys, model_labels = ax.get_legend_handles_labels()
+    ax.legend(handles=model_keys + style_keys,
+              labels=model_labels + [h.get_label() for h in style_keys],
+              frameon=False, fontsize=6.5, ncol=3, columnspacing=0.9, handlelength=1.3,
+              loc="lower center", bbox_to_anchor=(0.5, 1.01), borderaxespad=0.0)
+    fig.savefig(out / "name_health.pdf", bbox_inches="tight")
+    fig.savefig(out / "name_health.png", bbox_inches="tight")
     plt.close(fig)
 
 
