@@ -5,10 +5,22 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch, FancyArrowPatch, Rectangle
 from pathlib import Path
 
-CANVAS   = "#0B0B0B"; SOFT = "#1C1C1C"; WHITE = "#FFFFFF"
-ASH      = "#B9B9B9"; MUTE = "#797979"; HAIR = "#353535"; BRAND = "#D97757"
-SANS     = ["Inter", "DejaVu Sans"]; MONO = ["IBM Plex Mono", "DejaVu Sans Mono"]
-OUT = Path("assets"); OUT.mkdir(exist_ok=True)
+import os
+# 테마 — DECK_THEME=light 면 **흰 바탕용**(검정 잉크). deck.py와 같은 환경변수를 본다.
+# 이름은 그대로 두고 값만 뒤집는다: WHITE = "가장 진한 잉크", CANVAS = "바탕".
+if os.environ.get("DECK_THEME", "dark").lower() == "light":
+    CANVAS = "#FFFFFF"; SOFT = "#FAFAFA"; WHITE = "#0A0A0A"
+    ASH    = "#2E2E2E"; MUTE = "#6B6B6B"; HAIR = "#D8D8D8"; BRAND = "#B34A28"
+    OUT = Path("assets_light")
+else:
+    CANVAS   = "#0B0B0B"; SOFT = "#1C1C1C"; WHITE = "#FFFFFF"
+    ASH      = "#B9B9B9"; MUTE = "#797979"; HAIR = "#353535"; BRAND = "#D97757"
+    OUT = Path("assets")
+if os.environ.get("DECK_LANG", "en").lower() == "ko":
+    SANS = ["NanumGothic", "DejaVu Sans"]; MONO = ["NanumGothic", "DejaVu Sans Mono"]
+else:
+    SANS = ["Inter", "DejaVu Sans"]; MONO = ["IBM Plex Mono", "DejaVu Sans Mono"]
+OUT.mkdir(exist_ok=True)
 PX = 1 / 144.0   # 1920x1080 기준틀의 1px = 1/144 inch
 
 matplotlib.rcParams.update({

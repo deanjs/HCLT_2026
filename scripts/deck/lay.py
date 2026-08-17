@@ -1,5 +1,6 @@
 """반복되는 배치 몇 가지. 슬라이드마다 격자를 바꿔 쓰기 위한 재료."""
 from deck import *
+from deck import _LIGHT
 from PIL import Image
 
 FIG = "/home/user/HCLT_2026/docs"
@@ -93,14 +94,17 @@ def table(D, s, x, y, w, headers, rows_, col_w, size=10, pitch=32, hi=None,
                 WHITE if k == 0 else ASH)
             D._tb(s, xs[k], yy + 4, col_w[k] - 26, rh, str(cell), size, col, line=1.3)
         if i < len(rows_) - 1:
-            D.hline(s, x, yy + rh - 6, w, RGBColor(0x26, 0x26, 0x26))
+            D.hline(s, x, yy + rh - 6, w, HAIR)
         yy += rh
     return yy - y
 
 
 def code(D, s, x, y, w, h, lines, size=9.5, pitch=None):
-    """코드 패널 — 모노, 6px 라운드, 어두운 바닥."""
-    D.rect(s, x, y, w, h, fill=RGBColor(0x14, 0x14, 0x14), line=HAIR, radius=6)
+    """코드 패널 — 모노, 6px 라운드. 라이트 테마에서는 **연회색 바닥**이어야 한다.
+    다크 값을 그대로 두면 흰 슬라이드에 검은 상자가 박혀 글자가 안 보인다."""
+    D.rect(s, x, y, w, h,
+           fill=RGBColor(0xF2, 0xF2, 0xF2) if _LIGHT else RGBColor(0x14, 0x14, 0x14),
+           line=HAIR, radius=6)
     avail = w - 36
     widest = max((text_w(ln.lstrip("»"), size, font=MONO) for ln in lines), default=1)
     # 폭과 높이 양쪽에 맞춰 자동 축소한다 — 코드 줄이 줄바꿈되어 겹치는 일을 막는다

@@ -10,23 +10,35 @@ from pathlib import Path
 import copy, os, functools
 
 # ── 텍스트 계측 ──────────────────────────────────────────────────────────
+_F = os.path.expanduser("~/.fonts")
 _FONTS = {
-    (SANS_ := "Inter", False): os.path.expanduser("~/.fonts/Inter-Regular.ttf"),
-    ("Inter", True): os.path.expanduser("~/.fonts/Inter-Bold.ttf"),
-    ("IBM Plex Mono", False): os.path.expanduser("~/.fonts/IBMPlexMono-Regular.ttf"),
-    ("IBM Plex Mono", True): os.path.expanduser("~/.fonts/IBMPlexMono-SemiBold.ttf"),
+    (SANS_ := "Inter", False): f"{_F}/Inter-Regular.ttf",
+    ("Inter", True): f"{_F}/Inter-Bold.ttf",
+    ("IBM Plex Mono", False): f"{_F}/IBMPlexMono-Regular.ttf",
+    ("IBM Plex Mono", True): f"{_F}/IBMPlexMono-SemiBold.ttf",
+    # 한글 — 측정용 실물. 없으면 줄바꿈 계산이 통째로 틀어진다.
+    ("NanumGothic", False): f"{_F}/NanumGothic.ttf",
+    ("NanumGothic", True): f"{_F}/NanumGothicBold.ttf",
 }
 
 @functools.lru_cache(maxsize=512)
 def _font(name, bold, px):
-    return ImageFont.truetype(_FONTS[(name, bold)], int(round(px)))
+    path = _FONTS[(name, bold)]
+    if not os.path.exists(path):
+        # 조용한 실패 금지 — 폰트가 없으면 폭 계산이 엉켜 글자가 카드를 넘친다.
+        raise FileNotFoundError(
+            f"측정용 폰트가 없다: {path}\n"
+            "  한글 덱: python -c \"import koreanize_matplotlib,glob,os,shutil;"
+            "[shutil.copy(f,os.path.expanduser('~/.fonts/')) for f in "
+            "glob.glob(os.path.dirname(koreanize_matplotlib.__file__)+'/**/*.ttf',recursive=True)]\"")
+    return ImageFont.truetype(path, int(round(px)))
 
-def text_w(txt, size_pt, font="Inter", bold=False, spacing=0.0):
-    """1920 기준틀 px 폭. 1pt = 2px(144dpi 기준틀)."""
-    f = _font(font, bold, size_pt * 2)
+def text_w(txt, size_pt, font=None, bold=False, spacing=0.0):
+    """1920 기준틀 px 폭. 1pt = 2px(144dpi 기준틀). font=None이면 현재 테마의 SANS."""
+    f = _font(font or SANS, bold, size_pt * 2)
     return f.getlength(txt) + spacing * 2 * len(txt)
 
-def wrap_lines(txt, w_px, size_pt, font="Inter", bold=False, first_indent=0.0):
+def wrap_lines(txt, w_px, size_pt, font=None, bold=False, first_indent=0.0):
     """주어진 폭에서 몇 줄이 되는지. 실제 폰트 메트릭으로 잰다."""
     words, lines, cur = txt.split(), 0, ""
     avail = w_px - first_indent
@@ -52,11 +64,34 @@ def block_h(txt, w_px, size_pt, line=1.35):
 EMU_PX = 6350                      # 1px(1920 기준틀) = 1/144 inch
 def E(px): return Emu(int(round(px * EMU_PX)))
 
-CANVAS = RGBColor(0x0B, 0x0B, 0x0B); SOFT = RGBColor(0x1C, 0x1C, 0x1C)
-WHITE  = RGBColor(0xFF, 0xFF, 0xFF); ASH  = RGBColor(0xB9, 0xB9, 0xB9)
-MUTE   = RGBColor(0x79, 0x79, 0x79); HAIR = RGBColor(0x35, 0x35, 0x35)
-BRAND  = RGBColor(0xD9, 0x77, 0x57); LIGHT = RGBColor(0xFF, 0xFF, 0xFF)
-SANS = "Inter"; MONO = "IBM Plex Mono"
+# ── 테마 ────────────────────────────────────────────────────────────────
+# 환경변수 DECK_THEME=light 면 **흰 바탕·검정 글씨**. 기본은 기존 다크(옛 덱 재현용).
+# 색 상수는 **아래 함수들의 기본 인자로 캡처**되므로 반드시 클래스 정의 **전에** 정해야 한다.
+#   이름은 그대로 둔다(WHITE/ASH/…) — 200군데 호출부를 안 건드리려는 것이다.
+#   라이트에서 WHITE는 "가장 진한 글씨색", CANVAS는 "바탕"이라는 **역할 이름**으로 읽는다.
+_LIGHT = os.environ.get("DECK_THEME", "dark").lower() == "light"
+
+if _LIGHT:
+    CANVAS = RGBColor(0xFF, 0xFF, 0xFF)   # 바탕 — 흰색
+    SOFT   = RGBColor(0xFA, 0xFA, 0xFA)   # 카드 바탕 — 거의 흰색
+    WHITE  = RGBColor(0x0A, 0x0A, 0x0A)   # 가장 진한 글씨 — 검정
+    ASH    = RGBColor(0x2E, 0x2E, 0x2E)   # 본문
+    MUTE   = RGBColor(0x6B, 0x6B, 0x6B)   # 보조
+    HAIR   = RGBColor(0xD8, 0xD8, 0xD8)   # 실선
+    BRAND  = RGBColor(0xB3, 0x4A, 0x28)   # 강조(드물게)
+    LIGHT  = RGBColor(0xFF, 0xFF, 0xFF)
+else:
+    CANVAS = RGBColor(0x0B, 0x0B, 0x0B); SOFT = RGBColor(0x1C, 0x1C, 0x1C)
+    WHITE  = RGBColor(0xFF, 0xFF, 0xFF); ASH  = RGBColor(0xB9, 0xB9, 0xB9)
+    MUTE   = RGBColor(0x79, 0x79, 0x79); HAIR = RGBColor(0x35, 0x35, 0x35)
+    BRAND  = RGBColor(0xD9, 0x77, 0x57); LIGHT = RGBColor(0xFF, 0xFF, 0xFF)
+
+# 한글 덱은 나눔고딕. 뷰어(윈도우·맥)에 없을 수 있으므로 PPTX에는 이 이름이 박히고,
+# 없으면 뷰어가 대체 폰트를 쓴다. **측정은 여기 있는 실제 파일로 한다.**
+if os.environ.get("DECK_LANG", "en").lower() == "ko":
+    SANS = "NanumGothic"; MONO = "NanumGothic"
+else:
+    SANS = "Inter"; MONO = "IBM Plex Mono"
 
 # 고정 앵커
 ML, MR = 100, 1820; CW = MR - ML
