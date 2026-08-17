@@ -63,12 +63,19 @@ CTRL_DIR_1LAYER = "results/step5_instr-cause-control"        # 봉우리 층 한
 CTRL_DIR_SWEEP = "results/step5_instr-cause-control-sweep"   # 전 층 (신)
 
 
-def default_ctrl_dir() -> Path:
-    """통제 폴더를 고른다. 두 폴더를 섞지 않는다 — 층이 달라 같은 키로 덮인다."""
-    sweep = Path(CTRL_DIR_SWEEP)
-    if sweep.is_dir() and any(sweep.glob("*.json")):
-        return sweep
-    return Path(CTRL_DIR_1LAYER)
+def default_ctrl_dirs() -> list[Path]:
+    """통제 폴더를 고른다. 전 층 스윕이 있으면 그쪽, 없으면 기존 단일 층.
+
+    전 층 스윕은 한 폴더(`…-control-sweep/`)일 수도 있고, 모델별로 갈려
+    저장됐을 수도 있다(`step5_control_sweep_<모델>/`). 둘 다 받는다.
+    **단일 층 폴더와는 절대 섞지 않는다** — 짝짓기 키에 층이 없어 조용히 덮인다.
+    """
+    one = Path(CTRL_DIR_SWEEP)
+    if one.is_dir() and any(one.glob("*.json")):
+        return [one]
+    split = sorted(d for d in Path("results").glob("step5_control_sweep_*")
+                   if d.is_dir() and any(d.glob("*.json")))
+    return split or [Path(CTRL_DIR_1LAYER)]
 
 
 def load_sweeps(root: Path) -> dict:
@@ -161,10 +168,16 @@ def main() -> None:
     if "--gap-min" in sys.argv:
         gap_min = float(sys.argv[sys.argv.index("--gap-min") + 1])
     treat_dir = Path(args[0]) if args else Path(TREAT_DIR)
-    ctrl_dir = Path(args[1]) if len(args) > 1 else default_ctrl_dir()
+    ctrl_dirs = [Path(a) for a in args[1:]] or default_ctrl_dirs()
 
     treat = load_sweeps(treat_dir)
-    ctrl = load_sweeps(ctrl_dir)
+    ctrl = {}
+    for d in ctrl_dirs:
+        part = load_sweeps(d)
+        dup = set(part) & set(ctrl)
+        if dup:
+            raise SystemExit(f"통제 폴더끼리 조건이 겹친다: {sorted(dup)[:3]}…")
+        ctrl.update(part)
     if not treat or not ctrl:
         raise SystemExit(f"결과를 못 찾았다: 처치 {len(treat)}개 · 통제 {len(ctrl)}개")
 
@@ -174,7 +187,8 @@ def main() -> None:
     print("=" * 100)
     n_ctrl_layers = {len(v["per_layer"]) for v in ctrl.values()}
     print(f"처치 {treat_dir}  {len(treat)}개")
-    print(f"통제 {ctrl_dir}  {len(ctrl)}개 · 조건당 층 {sorted(n_ctrl_layers)}")
+    print(f"통제 {' + '.join(str(d) for d in ctrl_dirs)}  {len(ctrl)}개 "
+          f"· 조건당 층 {sorted(n_ctrl_layers)}")
     if max(n_ctrl_layers, default=0) <= 1:
         print("  ⚠️ 통제가 층 하나뿐이다 — 층별 순효과 곡선은 만들 수 없고,"
               " 아래 봉우리 층은 '선택'이 아니라 '유일한 후보'다.")

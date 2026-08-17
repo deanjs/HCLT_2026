@@ -20,24 +20,22 @@ figures/       그림 (explain_* = 이해용 · 나머지 = 논문용, pdf+png)
 
 결과 원본: `results/step5_instr-cause/` 336개 · `step5_instr-cause-control/` 2016개 — **불변**(CLAUDE.md §6). 집계·작도는 `scripts/`의 스크립트로만 한다.
 
-## 진행 중 — 통제 전 층 스윕
+## 덮기 몫을 전 층에서 다시 쟀다 (완료)
 
-통제가 **봉우리 층 한 곳**에서만 돌아 층별 순효과 곡선이 없다(→ `results.md` §3).
-같은 통제 조건을 전 층에서 다시 재는 노트북이 있다:
+전에는 덮기 몫을 봉우리 층 한 곳에서만 재서 층별 곡선을 만들 수 없었다.
+같은 조건을 전 층에서 다시 쟀고, **네 모델 모두 그 층이 실제 봉우리**로 확인됐다.
 
 ```
-notebooks/step5_instr-cause-control-sweep.ipynb     모델 하나씩 4번, 모델당 20~40분
-저장 → results/step5_instr-cause-control-sweep/     모델당 168개, 합 672개
+results/step5_control_sweep_<모델>/     모델당 168개, 합 672개 (전 층)
+results/step5_instr-cause-control/      옛 단일 층 실행분 2016개 — 남겨 두되 쓰지 않는다
 ```
 
-**폴더를 가른 이유.** 짝짓기 키가 `(모델·묶음·방향·공여)`라 층을 담지 않는다. 한 폴더에
-섞으면 층 구성이 다른 두 실행분이 조용히 서로를 덮는다. `step5_net_effect.py`는 이제
-그런 중복을 만나면 **예외를 던지고**, 통제 폴더는 새 폴더가 있으면 자동으로 그쪽을 쓴다
-(어느 쪽을 썼는지 출력 첫머리에 찍는다).
-
-돌린 뒤:
+집계·작도:
 
 ```bash
-python scripts/step5_net_effect.py    # 통제 폴더 자동 선택 · 층별 순효과
-python scripts/step5_figures.py       # 통제가 전 층이면 net_<모델>.png 가 추가로 나온다
+python scripts/step5_net_effect.py    # 전 층 스윕을 자동으로 찾는다
+python scripts/step5_figures.py       # net_<모델>.png(층별 지침 몫) 포함
 ```
+
+두 폴더를 한 폴더처럼 섞어 읽으면 층 구성이 다른 실행분이 조용히 덮인다.
+`step5_net_effect.py`는 그런 중복을 만나면 예외를 던진다.

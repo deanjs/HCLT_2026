@@ -78,17 +78,20 @@ def ci95(xs):
     return st.mean(xs), 1.96 * st.stdev(xs) / math.sqrt(len(xs))
 
 
-def ctrl_folder() -> str:
-    """통제 폴더를 고른다 — 전 층 스윕이 있으면 그쪽. 두 폴더를 섞지 않는다."""
-    sweep = Path("results/step5_instr-cause-control-sweep")
-    return sweep.name if sweep.is_dir() and any(sweep.glob("*.json")) \
-        else "step5_instr-cause-control"
+def ctrl_folders() -> list[str]:
+    """통제 폴더를 고른다 — 전 층 스윕이 있으면 그쪽(모델별로 갈려 있어도 받는다)."""
+    one = Path("results/step5_instr-cause-control-sweep")
+    if one.is_dir() and any(one.glob("*.json")):
+        return [one.name]
+    split = sorted(d.name for d in Path("results").glob("step5_control_sweep_*")
+                   if d.is_dir() and any(d.glob("*.json")))
+    return split or ["step5_instr-cause-control"]
 
 
 def load():
     """모델 → 공여 → 방식 → 층 → {(묶음,방향): 전이율}. 스윕 실행분만."""
     cube = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(dict))))
-    for folder in ("step5_instr-cause", ctrl_folder()):
+    for folder in ["step5_instr-cause", *ctrl_folders()]:
         for p in sorted(Path("results", folder).glob("*.json")):
             r = json.loads(p.read_text(encoding="utf-8"))
             ex = r["metrics"]["extra"]
@@ -211,9 +214,9 @@ def main() -> None:
               f"{st.mean(nets['value']):>13.3f}{st.mean(nets['key']):>12.3f}"
               f"{len(nets['value']):>5}")
 
-    folder = ctrl_folder()
-    print(f"\n통제 폴더: results/{folder}")
-    if folder.endswith("-sweep"):
+    folders = ctrl_folders()
+    print(f"\n통제 폴더: {', '.join('results/' + f for f in folders)}")
+    if any("sweep" in f for f in folders):
         print(f"그림 → {out}/  (모델당 sweep·net 2장)")
         print("통제가 전 층에 있으므로 봉우리 층은 **순효과 최대 층**이다(더 이상 유일한 후보가 아니다).")
     else:
