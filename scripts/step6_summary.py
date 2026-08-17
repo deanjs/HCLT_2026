@@ -37,6 +37,27 @@ def ci95(xs):
     return st.mean(xs), 1.96 * st.stdev(xs) / math.sqrt(len(xs))
 
 
+# 생성 과제("removes duplicate items from a list, preserving order")의 내용어.
+# 이름이 이 중 하나도 안 담고 있으면 **과제와 무관한 이름**이다.
+TASK_WORDS = ("remove", "duplicat", "dedup", "uniq", "distinct")
+
+
+def on_task(name) -> bool:
+    """생성된 이름이 **요청한 과제의 함수**인가.
+
+    표기(camel/snake) 판정만으로는 부족하다. 어텐션을 지시어에 몰아주면 모델이 그
+    단어를 그대로 베껴 `def camelCase(...)`를 쓰는데, 정규식상 camel이라 준수로
+    세어진다(name_health도 통과한다 — 형식·길이·반복이 다 정상이므로).
+    실제로 Spotlight rule_word ψ0.3에서 Llama 17/21, DeepSeek 8/21이 `camelCase`였다.
+    """
+    return bool(name) and any(w in name.lower() for w in TASK_WORDS)
+
+
+def compliant_real(ex) -> float:
+    """진짜 준수 — **표기가 맞고 + 과제도 맞아야** 1."""
+    return 1.0 if (ex["compliant"] and on_task(ex["name"])) else 0.0
+
+
 def _gen_key(ex) -> tuple:
     """생성 결과를 묶는 조건 키 — **방법을 반드시 포함한다.**
 
@@ -154,14 +175,14 @@ def main() -> None:
         for r in gen:
             ex = r["metrics"]["extra"]
             by[r["condition"]["model"]["family"]][_gen_key(ex)].append(ex)
-        print(f"{'모델':<11}{'조건':>18}{'준수율':>9}{'멀쩡한 이름':>12}"
+        print(f"{'모델':<11}{'조건':>18}{'진짜 준수율':>12}{'과제 맞음':>10}"
               f"{'camel':>8}{'snake':>8}{'그 외':>8}{'n':>5}")
         for m in MODELS:
             for s in sorted(by[m], key=_gen_key_order):
                 v = by[m][s]
                 nota = [e["notation"] for e in v]
-                print(f"{m:<11}{_gen_key_label(s):>18}{st.mean([e['compliant'] for e in v]):>9.3f}"
-                      f"{st.mean([e['name_ok'] for e in v]):>12.3f}"
+                print(f"{m:<11}{_gen_key_label(s):>18}{st.mean([compliant_real(e) for e in v]):>9.3f}"
+                      f"{st.mean([on_task(e['name']) for e in v]):>12.3f}"
                       f"{nota.count('camel') / len(v):>8.2f}{nota.count('snake') / len(v):>8.2f}"
                       f"{nota.count('other') / len(v):>8.2f}{len(v):>5}")
             print()
@@ -187,7 +208,7 @@ def main() -> None:
         for r in gen:
             ex = r["metrics"]["extra"]
             gn_by[(r["condition"]["model"]["family"], ex["method"],
-                   ex.get("layer"), _gen_key(ex))].append(ex["compliant"])
+                   ex.get("layer"), _gen_key(ex))].append(compliant_real(ex))
         pairs = [(k[0], k[3], st.mean(sc_by[k]), st.mean(gn_by[k]))
                  for k in gn_by if k in sc_by]
 
@@ -317,7 +338,7 @@ def _figures(rec, gen, PEAK, out: Path, steer=()):
     g = defaultdict(dict)
     for r in gen:
         ex = r["metrics"]["extra"]
-        g[r["condition"]["model"]["family"]].setdefault(_gen_key(ex), []).append(ex["compliant"])
+        g[r["condition"]["model"]["family"]].setdefault(_gen_key(ex), []).append(compliant_real(ex))
     bars = [("no intervention", "0.75", lambda d: d.get((0, 0.0, ""))),
             ("Value steering (best α)", "tab:blue",
              lambda d: max((v for k, v in d.items() if k[0] == 1), key=st.mean, default=None)),
@@ -355,7 +376,7 @@ def _figures(rec, gen, PEAK, out: Path, steer=()):
         sc_by[(r["condition"]["model"]["family"], ex.get("layer"), _gen_key(ex))].append(ex["recovery"])
     for r in gen:
         ex = r["metrics"]["extra"]
-        gn_by[(r["condition"]["model"]["family"], ex.get("layer"), _gen_key(ex))].append(ex["compliant"])
+        gn_by[(r["condition"]["model"]["family"], ex.get("layer"), _gen_key(ex))].append(compliant_real(ex))
     fig, ax = plt.subplots(figsize=(3.3, 2.5))
     MK = {0: ("o", "no intervention"), 1: ("^", "value steering"), 2: ("s", "Spotlight")}
     C = dict(zip(MODELS, ("tab:blue", "tab:orange", "tab:green", "tab:red")))
