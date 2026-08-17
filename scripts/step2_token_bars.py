@@ -56,6 +56,7 @@ matplotlib.rcParams.update({
 })
 
 STEP = "step2_code-observe"
+SEED = 42          # 기준 시드 (시드 67 = 자리 통제 재실험)
 MODELS = ["qwen", "deepseek", "llama", "stability"]
 LABEL = {"qwen": "Qwen2.5-Coder-3B", "deepseek": "DeepSeek-Coder-6.7B",
          "llama": "Llama-3.2-3B", "stability": "StableCode-3B"}
@@ -90,10 +91,11 @@ def main() -> None:
     for m in MODELS:
         L = str(PEAK[m])
         # 묶음마다 이름이 다르므로 **블록 0 하나**를 대표로 그린다(어느 단어인지 보여야 하니까).
-        f = next((p for p in sorted(Path("results", STEP).glob("*.json"))
-                  if json.loads(p.read_text(encoding="utf-8"))["condition"]["model"]["family"] == m
-                  and json.loads(p.read_text(encoding="utf-8"))["condition"]["preceding"]["pool_block"] == 0),
-                 None)
+        def _is_target(p):
+            c = json.loads(p.read_text(encoding="utf-8"))["condition"]
+            return (c["model"]["family"] == m and c["preceding"]["pool_block"] == 0
+                    and c.get("seed") == SEED)
+        f = next((p for p in sorted(Path("results", STEP).glob("*.json")) if _is_target(p)), None)
         if f is None:
             continue
         ex = json.loads(f.read_text(encoding="utf-8"))["metrics"]["extra"]
@@ -155,7 +157,7 @@ def main() -> None:
         pos = defaultdict(list)
         for p in sorted(Path("results", STEP).glob("*.json")):
             r = json.loads(p.read_text(encoding="utf-8"))
-            if r["condition"]["model"]["family"] != m:
+            if r["condition"]["model"]["family"] != m or r["condition"].get("seed") != SEED:
                 continue
             td = r["metrics"]["extra"].get("token_detail") or {}
             rows = []

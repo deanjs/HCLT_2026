@@ -36,6 +36,11 @@ PAIRS = {
 }
 
 
+def seeds_in(rows) -> set:
+    """읽어들인 결과에 시드가 몇 종류나 섞여 있나 — 섞이면 배치가 다른 실행분이다."""
+    return {r["condition"].get("seed") for r in rows}
+
+
 def load(root: str | Path):
     rows = []
     for p in sorted(Path(root).rglob("*.json")):

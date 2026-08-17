@@ -65,6 +65,7 @@ matplotlib.rcParams.update({
 })
 
 STEP = "step2_code-observe"
+SEED = 42          # 기준 시드. 시드 67은 자리 통제 재실험(scripts/step2_position_control.py)
 MODELS = ["qwen", "deepseek", "llama", "stability"]
 LABEL = {"qwen": "Qwen2.5-Coder-3B", "deepseek": "DeepSeek-Coder-6.7B",
          "llama": "Llama-3.2-3B", "stability": "StableCode-3B"}
@@ -95,6 +96,10 @@ def load():
     counts = defaultdict(lambda: defaultdict(list))
     for p in sorted(Path("results", STEP).glob("*.json")):
         r = json.loads(p.read_text(encoding="utf-8"))
+        # ⚠️ 자리 통제 재실험(시드 67)이 같은 폴더에 들어온다. 시드를 안 거르면 배치가 다른
+        #    두 실행분이 한 곡선으로 조용히 평균된다 — 논문 그림은 **기준 시드만** 쓴다.
+        if r["condition"].get("seed") != SEED:
+            continue
         m = r["condition"]["model"]["family"]
         cnt = r["metrics"]["extra"].get("span_token_counts", {})
         for span, n in cnt.items():
