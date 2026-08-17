@@ -82,6 +82,10 @@ S = logP("removeDuplicates") − logP("remove_duplicates")
 
 ## 3. 파이프라인
 
+> 아래는 **함수 호출 사슬**이다. 이 변수들(`viol_messages`·`comp_messages`·`donor_messages`)에
+> **실제로 무슨 글자가 들어 있는지**는 [`방법론.md` §2-1](방법론.md)에 프롬프트 원문으로 찍혀 있고,
+> 그걸 어떤 순서로 쓰는지는 §2-2에 절차로 적혀 있다. **거기부터 보는 편이 빠르다.**
+
 ```
 Condition(composition=POOL, n_compliant=6, intervention=Intervention(
     kind=VALUE, layers="sweep", donor="compliant"|"unrelated_camel"|"unrelated_snake",
