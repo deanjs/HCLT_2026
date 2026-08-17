@@ -236,11 +236,13 @@ def main() -> None:
             print()
 
     if fig_dir:
-        _figures(rec, gen, PEAK, fig_dir)
+        _figures(rec, gen, PEAK, fig_dir, steer)
         print(f"그림 → {fig_dir}/")
 
 
-def _figures(rec, gen, PEAK, out: Path):
+def _figures(rec, gen, PEAK, out: Path, steer=()):
+    global _STEER_CACHE
+    _STEER_CACHE = steer
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -307,6 +309,80 @@ def _figures(rec, gen, PEAK, out: Path):
               loc="lower center", bbox_to_anchor=(0.5, 1.01), borderaxespad=0.0)
     fig.savefig(out / "name_health.pdf", bbox_inches="tight")
     fig.savefig(out / "name_health.png", bbox_inches="tight")
+    plt.close(fig)
+
+    # ── 처방 비교, **실제 준수율로** ────────────────────────────────────
+    # explain_headline은 같은 비교를 '점수'로 한다. 그런데 점수는 준수율을 대변하지
+    # 않으므로(§3-3), 논문에 쓰는 방법 비교는 이 그림이어야 한다.
+    g = defaultdict(dict)
+    for r in gen:
+        ex = r["metrics"]["extra"]
+        g[r["condition"]["model"]["family"]].setdefault(_gen_key(ex), []).append(ex["compliant"])
+    bars = [("no intervention", "0.75", lambda d: d.get((0, 0.0, ""))),
+            ("Value steering (best α)", "tab:blue",
+             lambda d: max((v for k, v in d.items() if k[0] == 1), key=st.mean, default=None)),
+            ("Spotlight (best span·ψ)", "tab:gray",
+             lambda d: max((v for k, v in d.items() if k[0] == 2), key=st.mean, default=None))]
+    fig, ax = plt.subplots(figsize=(3.3, 2.3))
+    width, xs = 0.26, range(len(MODELS))
+    for off, (lab, color, pick) in zip((-1, 0, 1), bars):
+        ys, es = [], []
+        for m in MODELS:
+            v = pick(g[m])
+            a, c = ci95(v) if v else (float("nan"), float("nan"))
+            ys.append(a); es.append(c)
+        ax.bar([i + off * width for i in xs], ys, width, yerr=es, capsize=2,
+               color=color, label=lab, error_kw={"linewidth": 0.7})
+    ax.axhline(0, color="black", linewidth=0.5)
+    ax.set_xticks(list(xs))
+    ax.set_xticklabels([LABEL[m].split("-")[0] for m in MODELS], fontsize=6.5)
+    ax.set_ylabel("Actual compliance rate")
+    ax.set_ylim(0, 1.32)
+    ax.legend(frameon=False, fontsize=6.2, ncol=1, handlelength=1.3,
+              loc="lower center", bbox_to_anchor=(0.5, 1.01), borderaxespad=0.0)
+    ax.grid(axis="y", alpha=0.25, linewidth=0.4)
+    fig.savefig(out / "compliance_by_method.pdf", bbox_inches="tight")
+    fig.savefig(out / "compliance_by_method.png", bbox_inches="tight")
+    plt.close(fig)
+
+    # ── 회복률 vs 실제 준수율 산점도 ────────────────────────────────────
+    # "점수가 준수율을 대변하지 않는다"를 한 장으로. 두 축이 짝지어진 조건만 찍는다.
+    sc_by, gn_by = defaultdict(list), defaultdict(list)
+    for r in _STEER_CACHE:
+        ex = r["metrics"]["extra"]
+        if ex.get("undecidable") or ex.get("recovery") is None:
+            continue
+        sc_by[(r["condition"]["model"]["family"], ex.get("layer"), _gen_key(ex))].append(ex["recovery"])
+    for r in gen:
+        ex = r["metrics"]["extra"]
+        gn_by[(r["condition"]["model"]["family"], ex.get("layer"), _gen_key(ex))].append(ex["compliant"])
+    fig, ax = plt.subplots(figsize=(3.3, 2.5))
+    MK = {0: ("o", "no intervention"), 1: ("^", "value steering"), 2: ("s", "Spotlight")}
+    C = dict(zip(MODELS, ("tab:blue", "tab:orange", "tab:green", "tab:red")))
+    for k in gn_by:
+        if k not in sc_by:
+            continue
+        kind = k[2][0]
+        ax.scatter(st.mean(sc_by[k]), st.mean(gn_by[k]), marker=MK[kind][0], s=22,
+                   facecolors="none" if kind == 2 else C[k[0]], edgecolors=C[k[0]],
+                   linewidths=1.0)
+    ax.axvline(1.0, color="tab:red", linewidth=0.7, linestyle=":")
+    ax.set_xlabel("Preference-score recovery")
+    ax.set_ylabel("Actual compliance rate")
+    ax.set_ylim(-0.08, 1.15)
+    ax.grid(alpha=0.25, linewidth=0.4)
+    # 범례는 **모양=처방, 색=모델**을 따로 세운다. scatter에 label을 걸면 그때그때
+    # 먼저 그려진 모델 색이 범례에 박혀, 처방을 뜻하는 마커가 특정 모델 색으로 보인다.
+    keys = [Line2D([], [], marker=MK[i][0], color="none", markeredgecolor="0.3",
+                   markerfacecolor="none" if i == 2 else "0.3", ms=4, label=MK[i][1])
+            for i in (0, 1, 2)]
+    keys += [Line2D([], [], marker="s", color="none", markerfacecolor=C[m],
+                    markeredgecolor=C[m], ms=4, label=LABEL[m].split("-")[0]) for m in MODELS]
+    ax.legend(handles=keys, frameon=False, fontsize=6.0, ncol=4, handlelength=1.0,
+              columnspacing=0.7, loc="lower center", bbox_to_anchor=(0.5, 1.01),
+              borderaxespad=0.0)
+    fig.savefig(out / "score_vs_compliance.pdf", bbox_inches="tight")
+    fig.savefig(out / "score_vs_compliance.png", bbox_inches="tight")
     plt.close(fig)
 
 
