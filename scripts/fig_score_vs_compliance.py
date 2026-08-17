@@ -55,6 +55,7 @@ def cond_key(ex):
 
 
 def collect():
+    """모델 → 조건 → (회복률, 준수율). 세기 전 구간을 그대로 남긴다."""
     rec, gen = defaultdict(lambda: defaultdict(list)), defaultdict(lambda: defaultdict(list))
     for f in glob.glob("results/step6_steer/*.json"):
         r = json.load(open(f, encoding="utf-8"))
@@ -69,70 +70,56 @@ def collect():
         for g in ex.get("generations", [ex]):
             gen[m][cond_key(ex)].append(
                 1.0 if (g.get("compliant") and on_task(g.get("name"))) else 0.0)
-
-    out = {}
-    for m in MODELS:
-        common = [k for k in gen[m] if rec[m].get(k)]
-
-        def pair(k):
-            return st.mean(rec[m][k]), st.mean(gen[m][k])
-
-        va = [k for k in common if k.startswith("값조향")]
-        sl = [k for k in common if k.startswith("Spot")]
-        bv = max(va, key=lambda k: pair(k)[1])
-        bs = max(sl, key=lambda k: pair(k)[1])
-        out[m] = {"none": pair("무개입"),
-                  "value": (bv.replace("값조향 ", ""),) + pair(bv),
-                  "spot": (bs.split()[-1],) + pair(bs)}
-    return out
+    return rec, gen
 
 
 def main() -> None:
     out_dir = Path(sys.argv[sys.argv.index("--out") + 1]) if "--out" in sys.argv \
         else Path("docs/step6/figures")
     out_dir.mkdir(parents=True, exist_ok=True)
-    D = collect()
+    rec, gen = collect()
 
-    fig, axes = plt.subplots(1, 2, figsize=(9.6, 4.1))
-    xs = range(len(MODELS))
-    w = 0.26
-    panels = [
-        (axes[0], 1, "Preference-score recovery",
-         "Log-prob of two fixed candidates. 1.0 = back to the clean-context level"),
-        (axes[1], 2, "Actual compliance rate",
-         "Names generated under steering. Correct notation AND on-task"),
-    ]
-    for ax, idx, title, sub in panels:
-        for off, (key, col, lab) in enumerate((
-                ("none", NONE, "No intervention"),
-                ("value", GOOD, "Value steering (ours)"),
-                ("spot", BAD, "Spotlight (prior work)"))):
-            vals = [D[m][key][idx] if key != "none" else D[m][key][idx - 1] for m in MODELS]
-            ax.bar([x + (off - 1) * w for x in xs], vals, w, color=col, label=lab)
-            for x, v in zip(xs, vals):
-                ax.text(x + (off - 1) * w, v + (0.06 if v >= 0 else -0.16), f"{v:.3f}",
-                        ha="center", fontsize=6.8, color=col if key != "none" else MUT)
+    STR = [1, 2, 4, 8]
+    COL = {"qwen": "#1F6FB4", "deepseek": "#2CA02C",
+           "llama": "#9467BD", "stability": "#D9822B"}
+
+    fig, axes = plt.subplots(1, 2, figsize=(9.8, 4.0))
+    for ax, src, title, sub in (
+            (axes[0], rec, "Preference-score recovery",
+             "Log-prob of two fixed candidates. 1.0 = clean-context level"),
+            (axes[1], gen, "Actual compliance rate",
+             "Names generated under steering. Correct notation AND on-task")):
+        for m in MODELS:
+            ys = [st.mean(src[m][f"값조향 세기{a:g}"]) if src[m].get(f"값조향 세기{a:g}")
+                  else float("nan") for a in STR]
+            ax.plot(STR, ys, marker="o", ms=4.5, lw=1.6, color=COL[m],
+                    label=f"{NAME[m].replace(chr(10), ' ')}  (L{LAYER[m]})")
+            # Spotlight — 세기 축이 없으므로 오른쪽 끝 밖에 점 하나로 둔다
+            sl = [st.mean(v) for k, v in src[m].items() if k.startswith("Spot")]
+            if sl:
+                ax.plot([13], [max(sl)], marker="s", ms=5, color=COL[m], alpha=0.75)
         ax.axhline(0, color="black", lw=0.8)
-        if idx == 1:
+        if src is rec:
             ax.axhline(1.0, color=HAIR, lw=1, ls="--")
-            ax.text(-0.52, 1.06, "ceiling 1.0", fontsize=7, color=MUT)
-        ax.set_xticks(list(xs))
-        ax.set_xticklabels([NAME[m] for m in MODELS], fontsize=8)
+            ax.text(0.75, 1.06, "ceiling 1.0", fontsize=7, color=MUT)
+        ax.set_xscale("log", base=2)
+        ax.set_xticks(STR + [13])
+        ax.set_xticklabels([str(a) for a in STR] + ["Spot-\nlight"], fontsize=8)
+        ax.set_xlabel("Steering strength  α", fontsize=9)
+        ax.axvline(10.5, color=HAIR, lw=1)
         ax.set_title(title, fontsize=10.5, pad=18)
-        ax.text(0.5, 1.02, sub, transform=ax.transAxes, ha="center",
-                fontsize=7.6, color=MUT)
-        ax.grid(axis="y", alpha=0.25, lw=0.4)
-        ax.set_axisbelow(True)
-    axes[1].set_ylim(-0.03, 1.15)
-    axes[0].set_ylim(-0.55, 3.25)
+        ax.text(0.5, 1.02, sub, transform=ax.transAxes, ha="center", fontsize=7.6, color=MUT)
+        ax.grid(alpha=0.25, lw=0.4); ax.set_axisbelow(True)
+    axes[1].set_ylim(-0.04, 1.08)
 
     h, l = axes[0].get_legend_handles_labels()
-    fig.legend(h, l, frameon=False, ncol=3, loc="lower center", bbox_to_anchor=(0.5, -0.02))
-    lay = " · ".join(f"{NAME[m].split(chr(10))[0]} L{LAYER[m]}" for m in MODELS)
+    fig.legend(h, l, frameon=False, ncol=4, loc="lower center", bbox_to_anchor=(0.5, -0.02),
+               fontsize=8)
     fig.text(0.5, 0.055,
-             f"Steering layer — {lay}   ·   per model, the condition with the highest compliance is shown",
+             "Every strength is shown — no best-case selection. "
+             "Spotlight (square) is the max over span x psi; it has no strength axis.",
              ha="center", fontsize=7.4, color=MUT)
-    fig.tight_layout(rect=(0, 0.11, 1, 1))
+    fig.tight_layout(rect=(0, 0.12, 1, 1))
     for ext in ("png", "pdf"):
         fig.savefig(out_dir / f"score_vs_compliance_paired.{ext}", dpi=200,
                     bbox_inches="tight", facecolor="white")
