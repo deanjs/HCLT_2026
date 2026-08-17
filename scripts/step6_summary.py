@@ -37,6 +37,43 @@ def ci95(xs):
     return st.mean(xs), 1.96 * st.stdev(xs) / math.sqrt(len(xs))
 
 
+def _gen_key(ex) -> tuple:
+    """생성 결과를 묶는 조건 키 — **방법을 반드시 포함한다.**
+
+    strength만으로 묶으면 strength가 없는 Spotlight(attn_amplify)가 `or 0.0` 때문에
+    무개입과 같은 칸에 조용히 섞인다. 값이 뒤섞여도 에러가 안 나므로 키에 방법을 넣는다.
+    """
+    meth = ex["method"]
+    if meth == "value_add":
+        return (1, float(ex["strength"]), "")
+    if meth == "attn_amplify":
+        return (2, float(ex["psi_target"]), ex.get("span") or "")
+    return (0, 0.0, "")
+
+
+def _gen_key_order(k: tuple) -> tuple:
+    return k
+
+
+def _gen_key_label(k: tuple) -> str:
+    kind, val, span = k
+    if kind == 0:
+        return "무개입"
+    if kind == 1:
+        return f"값조향 세기{val:g}"
+    return f"SL {span[:6]} ψ{val:g}"
+
+
+def pearson(xs, ys) -> float:
+    """상관계수. 표본이 2개 이하거나 한쪽이 상수면 nan."""
+    if len(xs) < 3:
+        return float("nan")
+    mx, my = st.mean(xs), st.mean(ys)
+    num = sum((a - mx) * (b - my) for a, b in zip(xs, ys))
+    den = math.sqrt(sum((a - mx) ** 2 for a in xs) * sum((b - my) ** 2 for b in ys))
+    return num / den if den else float("nan")
+
+
 def peak_layers(rows):
     """모델별 '맞는 층' — 조건에 쓰인 값 중 큰 쪽(엉뚱한 층은 초반으로 잡았다)."""
     seen = defaultdict(set)
@@ -111,17 +148,19 @@ def main() -> None:
         print("\n" + "=" * 96)
         print("③ 조향을 세게 걸면 이름이 깨지는가 (실제 생성)")
         print("=" * 96)
+        # 조건 키에 **방법을 함께** 넣는다. strength만으로 묶으면 strength가 없는
+        # Spotlight(attn_amplify)가 무개입(0.0)과 같은 칸에 조용히 섞인다.
         by = defaultdict(lambda: defaultdict(list))
         for r in gen:
             ex = r["metrics"]["extra"]
-            by[r["condition"]["model"]["family"]][ex["strength"] or 0.0].append(ex)
-        print(f"{'모델':<11}{'세기':>6}{'준수율':>9}{'멀쩡한 이름':>12}"
+            by[r["condition"]["model"]["family"]][_gen_key(ex)].append(ex)
+        print(f"{'모델':<11}{'조건':>18}{'준수율':>9}{'멀쩡한 이름':>12}"
               f"{'camel':>8}{'snake':>8}{'그 외':>8}{'n':>5}")
         for m in MODELS:
-            for s in sorted(by[m]):
+            for s in sorted(by[m], key=_gen_key_order):
                 v = by[m][s]
                 nota = [e["notation"] for e in v]
-                print(f"{m:<11}{s:>6g}{st.mean([e['compliant'] for e in v]):>9.3f}"
+                print(f"{m:<11}{_gen_key_label(s):>18}{st.mean([e['compliant'] for e in v]):>9.3f}"
                       f"{st.mean([e['name_ok'] for e in v]):>12.3f}"
                       f"{nota.count('camel') / len(v):>8.2f}{nota.count('snake') / len(v):>8.2f}"
                       f"{nota.count('other') / len(v):>8.2f}{len(v):>5}")
@@ -130,6 +169,51 @@ def main() -> None:
         print(f"깨진 이름 {len(bad)}개 / 전체 {len(gen)}개")
         for e in bad[:8]:
             print(f"  세기 {e['strength'] or 0:g}: {e['name']!r} — {e['name_reason']}")
+
+    # ── ③-b 점수 회복률이 실제 준수율을 대변하는가 ────────────────────
+    if gen:
+        print("\n" + "=" * 96)
+        print("③-b 점수 회복률과 실제 준수율의 관계 — 같은 조건끼리 짝지어 본다")
+        print("    회복률은 step6_steer, 준수율은 step6_steer-generate. 조건이 겹치는 것만 쓴다.")
+        print("=" * 96)
+        sc_by = defaultdict(list)
+        for r in steer:
+            ex = r["metrics"]["extra"]
+            if ex.get("undecidable") or ex.get("recovery") is None:
+                continue
+            sc_by[(r["condition"]["model"]["family"], ex["method"],
+                   ex.get("layer"), _gen_key(ex))].append(ex["recovery"])
+        gn_by = defaultdict(list)
+        for r in gen:
+            ex = r["metrics"]["extra"]
+            gn_by[(r["condition"]["model"]["family"], ex["method"],
+                   ex.get("layer"), _gen_key(ex))].append(ex["compliant"])
+        pairs = [(k[0], k[3], st.mean(sc_by[k]), st.mean(gn_by[k]))
+                 for k in gn_by if k in sc_by]
+
+        print(f"{'모델':<11}{'조건':>18}{'회복률':>10}{'실제 준수율':>13}")
+        for m in MODELS:
+            for _, key, s, g in sorted([p for p in pairs if p[0] == m], key=lambda p: p[1]):
+                print(f"{m:<11}{_gen_key_label(key):>18}{s:>10.3f}{g:>13.3f}")
+            print()
+
+        rs = [(p[2], p[3]) for p in pairs]
+        strong = [(p[2], p[3]) for p in pairs if p[1][0] == 1 and p[1][1] >= 2]
+        weak = [(p[2], p[3]) for p in pairs if p[1][0] != 1 or p[1][1] <= 2]
+        print(f"{'구간':<26}{'n':>5}{'상관계수 r':>12}")
+        for tag, sel in (("전체", rs), ("약한 조향(세기 ≤2)", weak), ("센 조향(세기 ≥2)", strong)):
+            print(f"{tag:<26}{len(sel):>5}"
+                  f"{pearson([a for a, _ in sel], [b for _, b in sel]):>12.3f}")
+
+        lo = [p for p in pairs if p[2] < 1.0 and p[1][0] != 0]
+        hi = [p for p in pairs if p[2] >= 1.5]
+        print("\n회복률 구간별 실제 준수율의 **범위** — 이게 핵심이다")
+        print(f"{'회복률':<16}{'n':>5}{'준수율 최소':>12}{'준수율 최대':>12}")
+        for tag, sel in (("< 1.0", lo), ("≥ 1.5", hi)):
+            if sel:
+                print(f"{tag:<16}{len(sel):>5}{min(p[3] for p in sel):>12.3f}"
+                      f"{max(p[3] for p in sel):>12.3f}")
+        print("\n같은 회복률에서 준수율이 넓게 흩어지면, 회복률만으로 처방의 성패를 말할 수 없다.")
 
     # ── ④ 방향이 층 특이적인가 ───────────────────────────────────────
     if cross:
