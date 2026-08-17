@@ -18,7 +18,7 @@ results.md     결과 — JSON 읽는 법(필드 정의)·표·해석·그림
 figures/       그림 (explain_* = 이해용 · 나머지 = 논문용, pdf+png)
 ```
 
-결과 원본: `results/step5_instr-cause/` 336개 · `step5_instr-cause-control/` 2016개 — **불변**(CLAUDE.md §6). 집계·작도는 `scripts/`의 스크립트로만 한다.
+결과 원본: `results/step5_instr-cause/` 336개 · `step5_control_sweep_<모델>/` 672개 · `step5_instr-cause-control/` 2016개(옛 단일 층, 쓰지 않는다) — **불변**(CLAUDE.md §6). 집계·작도는 `scripts/`의 스크립트로만 한다.
 
 ## 덮기 몫을 전 층에서 다시 쟀다 (완료)
 
