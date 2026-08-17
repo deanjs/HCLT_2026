@@ -1623,8 +1623,8 @@ D.body(s, x, y, w, "Leaving it out would have been easy and would have made the 
        "the score-only version of this result is the kind of claim this study was reorganised to stop making.",
        fit_h=h, tag="s6-why")
 
-s = D.slide(C5, "Step 6 · Result — is the effect layer-local?",
-            "The direction is built at the causal peak, then added at other layers to see whether the location matters.")
+s = D.slide(C5, "Step 6 · Result — the remedy is not layer-local",
+            "The direction is built at the causal peak, then added elsewhere. Location turns out not to matter.")
 lx, lw, rx, rw = split(1000)
 x, y, w, h = D.panel(s, lx, BODY_TOP, lw, 430, "what the cross-layer runs vary")
 kv_rows(D, s, x, y, w, [
@@ -1632,8 +1632,8 @@ kv_rows(D, s, x, y, w, [
     ("Injection layer", "swept across the stack, including early layers"),
     ("Strength", "held at a single value so only location varies"),
     ("Conditions", "336 runs, the same blocks as the main sweep")], pitch=44)
-D._tb(s, x, y + 200, w, 80, "An effect that survived injection anywhere would mean the layer claim from step 3 "
-      "was not carrying real information.", 10.5, ASH)
+D._tb(s, x, y + 200, w, 80, "Three placements are compared per model, each swept over four strengths; "
+      "the best strength is reported for each.", 10.5, ASH)
 x, y, w, h = D.panel(s, rx, BODY_TOP, rw, 430, "what the records store",
                      "steer_from_layer records where the direction came from; layer records where it was applied.")
 code(D, s, x, y, w, h, [
@@ -1643,13 +1643,15 @@ code(D, s, x, y, w, h, [
     '»  "layer": 5,                    # where it was injected',
     '  "steer_vector": {"n_samples": 8, "n_skipped": 0,',
     '                   "vec_norm": 30.48},',
-    '  "recovery": -0.153,            # injecting early hurts',
+    '  "recovery": 1.83,              # injecting early works too',
     '  "hook_calls": 2 }'], size=9)
 y2 = BODY_TOP + 430 + GAP
 x, y, w, h = D.panel(s, ML, y2, MR - ML, BODY_BOT - y2, "the reading",
-                     "Consistent with step 3's layer profile, measured on a different intervention.")
-D.body(s, x, y, w, "Injecting the same direction at an early layer does not restore preference and can move it the "
-       "wrong way. The effect is tied to where it is applied, which is what a layer-local mechanism predicts.",
+                     "Best score recovery per model: peak→peak 1.39–4.30, early→early 1.35–3.62, peak→early 1.35–4.08.")
+D.body(s, x, y, w, "Injecting at an early layer works about as well, and on two models slightly better. The "
+       "prescription is therefore not layer-local — the residual stream carries an added direction forward, so "
+       "an edit made early survives to the end. This is separate from steps 3 and 5, where the signal itself "
+       "was localised; that was an observation about where information sits, not about where a remedy must be applied.",
        fit_h=h, tag="s6-cross")
 
 s = D.slide(C5, "Step 6 · Reading the result files",
