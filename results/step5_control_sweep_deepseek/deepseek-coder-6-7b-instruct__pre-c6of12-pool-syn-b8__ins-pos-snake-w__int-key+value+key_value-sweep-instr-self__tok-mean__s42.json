@@ -1,0 +1,352 @@
+{
+  "step": "step5_instr-cause-control-sweep",
+  "rq": "RQ3",
+  "prediction": "통제이므로 층 전체에서 넘어감이 0 근처여야 정상. 순효과 봉우리는 기존 봉우리 층과 같을 것으로 예측한다(step3 근거).",
+  "created_at": "2026-08-17T01:11:18.909115+00:00",
+  "condition": {
+    "model": {
+      "name": "deepseek-ai/deepseek-coder-6.7b-instruct",
+      "family": "deepseek",
+      "dtype": "float16",
+      "quantization": null
+    },
+    "preceding": {
+      "n_compliant": 6,
+      "n_functions": 12,
+      "composition": "pool",
+      "source": "synthetic",
+      "repo_lang": null,
+      "repo_file": null,
+      "pool_block": 8,
+      "lang": null
+    },
+    "instruction": {
+      "form": "positive",
+      "target_notation": "snake",
+      "strength": "weak",
+      "candidates": [
+        "camel",
+        "snake"
+      ]
+    },
+    "intervention": {
+      "kind": "key_value",
+      "layers": "sweep",
+      "donor": "self",
+      "amplify": null,
+      "kinds": [
+        "key",
+        "value",
+        "key_value"
+      ],
+      "strength": null,
+      "steer_source": null,
+      "steer_layer": null,
+      "span": null,
+      "target": "instruction"
+    },
+    "seed": 42,
+    "task_ids": [],
+    "tag": null,
+    "token_unit": "mean"
+  },
+  "metrics": {
+    "compliance_rate": null,
+    "compliance_preference": null,
+    "attention_weight": null,
+    "v_norm": null,
+    "av_norm": null,
+    "v_cosine": null,
+    "per_layer": {
+      "0": {
+        "key__S_int": 3.7686692005372606,
+        "key__recovery": -5.748562844862554e-07,
+        "value__S_int": 3.7686690069094766,
+        "value__recovery": -5.30375825079786e-07,
+        "key_value__S_int": 3.7471423295210116,
+        "key_value__recovery": 0.004944609623257427
+      },
+      "1": {
+        "key__S_int": 3.7686709168483503,
+        "key__recovery": -9.691297929964487e-07,
+        "value__S_int": 3.753042241121875,
+        "value__recovery": 0.0035892732505334573,
+        "key_value__S_int": 3.768667453812668,
+        "key_value__recovery": -1.7359614136314136e-07
+      },
+      "2": {
+        "key__S_int": 3.768671494006412,
+        "key__recovery": -1.101715392047959e-06,
+        "value__S_int": 3.7686705252854154,
+        "value__recovery": -8.791793795206274e-07,
+        "key_value__S_int": 3.768692449113587,
+        "key_value__recovery": -5.915553440773479e-06
+      },
+      "3": {
+        "key__S_int": 3.768678284715861,
+        "key__recovery": -2.6616871569560154e-06,
+        "value__S_int": 3.7783854723966215,
+        "value__recovery": -0.0022326111221055932,
+        "key_value__S_int": 3.7795227668248117,
+        "key_value__recovery": -0.0024938720713030176
+      },
+      "4": {
+        "key__S_int": 3.7627662947634235,
+        "key__recovery": 0.0013554493422599076,
+        "value__S_int": 3.763796719373204,
+        "value__recovery": 0.0011187386849712889,
+        "key_value__S_int": 3.7842968754121102,
+        "key_value__recovery": -0.0035905873195030895
+      },
+      "5": {
+        "key__S_int": 3.773522805306129,
+        "key__recovery": -0.001115552084267223,
+        "value__S_int": 3.7686753080342896,
+        "value__recovery": -1.9778794871566943e-06,
+        "key_value__S_int": 3.7950945002085064,
+        "key_value__recovery": -0.0060710335728740555
+      },
+      "6": {
+        "key__S_int": 3.8056951852631755,
+        "key__recovery": -0.00850623853904364,
+        "value__S_int": 3.773557743174024,
+        "value__recovery": -0.0011235780626795563,
+        "key_value__S_int": 3.7744073600915726,
+        "key_value__recovery": -0.0013187533109098573
+      },
+      "7": {
+        "key__S_int": 3.8047997400863096,
+        "key__recovery": -0.008300535555661827,
+        "value__S_int": 3.7627286525676027,
+        "value__recovery": 0.001364096562861937,
+        "key_value__S_int": 3.773564647155581,
+        "key_value__recovery": -0.0011251640554797884
+      },
+      "8": {
+        "key__S_int": 3.7471411699953023,
+        "key__recovery": 0.004944875991209211,
+        "value__S_int": 3.7530540394363925,
+        "value__recovery": 0.003586562924365201,
+        "key_value__S_int": 3.757922798336949,
+        "key_value__recovery": 0.0024681044669567502
+      },
+      "9": {
+        "key__S_int": 3.7627035907644313,
+        "key__recovery": 0.0013698537971566492,
+        "value__S_int": 3.7783041690126993,
+        "value__recovery": -0.0022139339891398763,
+        "key_value__S_int": 3.76771123308572,
+        "key_value__recovery": 0.00021949083601653568
+      },
+      "10": {
+        "key__S_int": 3.7686668172536884,
+        "key__recovery": -2.7364876048501352e-08,
+        "value__S_int": 3.7686695253651123,
+        "value__recovery": -6.494762164621468e-07,
+        "key_value__S_int": 3.7686719409539364,
+        "key_value__recovery": -1.2043888348715198e-06
+      },
+      "11": {
+        "key__S_int": 3.7471310859255027,
+        "key__recovery": 0.004947192518558964,
+        "value__S_int": 3.753052966319956,
+        "value__recovery": 0.0035868094422517537,
+        "key_value__S_int": 3.747128208662616,
+        "key_value__recovery": 0.00494785348762222
+      },
+      "12": {
+        "key__S_int": 3.76270896877395,
+        "key__recovery": 0.0013686183528980676,
+        "value__S_int": 3.768676229083212,
+        "value__recovery": -2.1894642006448255e-06,
+        "key_value__S_int": 3.757898440991994,
+        "key_value__recovery": 0.002473699872073658
+      },
+      "13": {
+        "key__S_int": 3.7530515088583343,
+        "key__recovery": 0.0035871442524796444,
+        "value__S_int": 3.7687068694795016,
+        "value__recovery": -9.228221113510213e-06,
+        "key_value__S_int": 3.7530321125523187,
+        "key_value__recovery": 0.003591600000432802
+      },
+      "14": {
+        "key__S_int": 3.6725727122393437,
+        "key__recovery": 0.02207485180979416,
+        "value__S_int": 3.689076446054969,
+        "value__recovery": 0.018283589797868836,
+        "key_value__S_int": 3.6881907317438163,
+        "key_value__recovery": 0.018487057392463254
+      },
+      "15": {
+        "key__S_int": 3.6633403424639255,
+        "key__recovery": 0.024195725376989677,
+        "value__S_int": 3.669011460879119,
+        "value__recovery": 0.022892947711471497,
+        "key_value__S_int": 3.6633420806610957,
+        "key_value__recovery": 0.024195326075778553
+      },
+      "16": {
+        "key__S_int": 3.7687069455860183,
+        "key__recovery": -9.245704414479387e-06,
+        "value__S_int": 3.7627175542293116,
+        "value__recovery": 0.0013666460894617002,
+        "key_value__S_int": 3.7686575221596286,
+        "key_value__recovery": 2.1079178060287565e-06
+      },
+      "17": {
+        "key__S_int": 2.975060857657809,
+        "key__recovery": 0.1823083012028555,
+        "value__S_int": 3.4596533713047393,
+        "value__recovery": 0.0709869960498615,
+        "key_value__S_int": 2.964690320484806,
+        "key_value__recovery": 0.18469063625906204
+      },
+      "18": {
+        "key__S_int": 3.7686774334288202,
+        "key__recovery": -2.466128245541731e-06,
+        "value__S_int": 3.7686817111098208,
+        "value__recovery": -3.448803418180072e-06,
+        "key_value__S_int": 3.7686692005372606,
+        "key_value__recovery": -5.748562844862554e-07
+      },
+      "19": {
+        "key__S_int": 3.7686396334902383,
+        "key__recovery": 6.217329255628404e-06,
+        "value__S_int": 3.768673605634831,
+        "value__recovery": -1.5868017789766212e-06,
+        "key_value__S_int": 3.753045251884032,
+        "key_value__recovery": 0.003588581613821427
+      },
+      "20": {
+        "key__S_int": 3.7627495489723515,
+        "key__recovery": 0.0013592962100208805,
+        "value__S_int": 3.768633348692674,
+        "value__recovery": 7.661082198071007e-06,
+        "key_value__S_int": 3.7686678878380917,
+        "key_value__recovery": -2.733011001980548e-07
+      },
+      "21": {
+        "key__S_int": 3.7686713379225694,
+        "key__recovery": -1.0658595820679655e-06,
+        "value__S_int": 3.778395697736414,
+        "value__recovery": -0.002234960102205979,
+        "key_value__S_int": 3.762751524714986,
+        "key_value__recovery": 0.001358842339516256
+      },
+      "22": {
+        "key__S_int": 3.7686658875027206,
+        "key__recovery": 1.8621888408964286e-07,
+        "value__S_int": 3.76867045686231,
+        "value__recovery": -8.634611230852434e-07,
+        "key_value__S_int": 3.7471195127582178,
+        "key_value__recovery": 0.0049498511235737605
+      },
+      "23": {
+        "key__S_int": 3.7842981585126836,
+        "key__recovery": -0.0035908820752544577,
+        "value__S_int": 3.7686655395955313,
+        "value__recovery": 2.6614063544165484e-07,
+        "key_value__S_int": 3.778370897343848,
+        "key_value__recovery": -0.0022292629195400644
+      },
+      "24": {
+        "key__S_int": 3.7686681187187787,
+        "key__recovery": -3.263393512835083e-07,
+        "value__S_int": 3.768663986993488,
+        "value__recovery": 6.228066609875629e-07,
+        "key_value__S_int": 3.753043286356842,
+        "key_value__recovery": 0.003589033137619114
+      },
+      "25": {
+        "key__S_int": 3.7686602626927197,
+        "key__recovery": 1.4783585125444952e-06,
+        "value__S_int": 3.78429955887259,
+        "value__recovery": -0.0035912037679922907,
+        "key_value__S_int": 3.768673609360121,
+        "key_value__recovery": -1.5876575581445198e-06
+      },
+      "26": {
+        "key__S_int": 3.7686622905021068,
+        "key__recovery": 1.0125271568935468e-06,
+        "value__S_int": 3.768708271207288,
+        "value__recovery": -9.550228082756236e-06,
+        "key_value__S_int": 3.7842701564659365,
+        "key_value__recovery": -0.003584449403879932
+      },
+      "27": {
+        "key__S_int": 3.7686542170704342,
+        "key__recovery": 2.8671677580981216e-06,
+        "value__S_int": 3.768663595954422,
+        "value__recovery": 7.126367305178986e-07,
+        "key_value__S_int": 3.768670510908123,
+        "key_value__recovery": -8.758766067945194e-07
+      },
+      "28": {
+        "key__S_int": 3.7842898317612708,
+        "key__recovery": -0.003588969241669836,
+        "value__S_int": 3.784295864519663,
+        "value__recovery": -0.0035903550958029506,
+        "key_value__S_int": 3.7842808941204567,
+        "key_value__recovery": -0.0035869160736732284
+      },
+      "29": {
+        "key__S_int": 3.7686641952896025,
+        "key__recovery": 5.749565711074935e-07,
+        "value__S_int": 3.7686647913069464,
+        "value__recovery": 4.380385900184978e-07,
+        "key_value__S_int": 3.768670183198992,
+        "key_value__recovery": -8.005947831184566e-07
+      },
+      "30": {
+        "key__S_int": 3.7576418022508733,
+        "key__recovery": 0.002532655301243149,
+        "value__S_int": 3.7686385611305013,
+        "value__recovery": 6.4636733120376585e-06,
+        "key_value__S_int": 3.768664578557946,
+        "key_value__recovery": 4.869116034351958e-07
+      },
+      "31": {
+        "key__S_int": 3.768668161588721,
+        "key__recovery": -3.361874974890892e-07,
+        "value__S_int": 3.768672551988857,
+        "value__recovery": -1.344756675731106e-06,
+        "key_value__S_int": 3.768666374060558,
+        "key_value__recovery": 7.444610183241206e-08
+      }
+    },
+    "extra": {
+      "mode": "intervene_sweep",
+      "intervention_target": "instruction",
+      "donor": "control_self",
+      "target": "snake",
+      "S_clean": -0.5844309679523576,
+      "S_base": 3.7686666981317103,
+      "gap": 4.353097666084068,
+      "undecidable": false,
+      "undecidable_gap_min": 1.0,
+      "kinds": [
+        "key",
+        "value",
+        "key_value"
+      ],
+      "n_substituted_tokens": 4,
+      "skipped_names": [],
+      "viol_names": [
+        "snake_case"
+      ],
+      "donor_names": [
+        "snake_case"
+      ]
+    }
+  },
+  "meta": {
+    "python": "3.12.13",
+    "git_sha": "416d44afd990dfa00f2cae31f3d56b9bcd94702c",
+    "git_dirty": true,
+    "torch": "2.11.0+cu128",
+    "transformers": "5.13.1",
+    "accelerate": "1.14.0",
+    "gpu": "Tesla T4"
+  }
+}
