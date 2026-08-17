@@ -2,7 +2,12 @@
 
 > **읽기 전:** [`../코드_하네스공통.md`](../코드_하네스공통.md) (모듈 지도·HuggingFace 기초)
 > **방법·해석:** [`방법론.md`](방법론.md) · [`results.md`](results.md)
-> **결과:** `results/step2_code-observe/` 168개 · **노트북:** `notebooks/step2_code-observe.ipynb`
+> **결과:** `results/step2_code-observe/` **334개** — 시드 42 168개 + **자리 통제 시드 67 166개**
+> **노트북:** `notebooks/step2_code-observe.ipynb`(시드 42) · `notebooks/step2_position-control.ipynb`(시드 67)
+>
+> ⚠️ **이 스텝의 주요 결론은 철회됐다** — 아래 코드는 그대로지만, 뽑은 값의 해석이 바뀌었다.
+> 시드 하나로만 재면 자리 효과와 표기 효과가 섞인다(→ [`results.md`](results.md) §3-6).
+> 두 실행분은 **같은 코드·같은 프롬프트**로 돌았고 `condition.seed`만 다르다.
 
 ---
 
