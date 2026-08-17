@@ -18,6 +18,7 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+WRONG_LAYER = {"qwen": 5, "deepseek": 5, "llama": 3, "stability": 4}
 MODELS = ["qwen", "deepseek", "llama", "stability"]
 LABEL = {"qwen": "Qwen2.5-Coder-3B", "deepseek": "DeepSeek-Coder-6.7B",
          "llama": "Llama-3.2-3B", "stability": "StableCode-3B"}
@@ -278,7 +279,7 @@ def _figures(rec, gen, PEAK, out: Path, steer=()):
             continue
         fig, ax = plt.subplots(figsize=(3.3, 2.3))
         for where, color, lab in (("맞는층", "tab:blue", f"Value steering @L{PEAK[m]}"),
-                                  ("엉뚱층", "tab:cyan", "Value steering @early layer")):
+                                  ("엉뚱층", "tab:cyan", f"Value steering @L{WRONG_LAYER.get(m, '?')} (early)")):
             ys = [st.mean(rec[m][f"값조향 {where} 세기{s:g}"])
                   if rec[m].get(f"값조향 {where} 세기{s:g}") else float("nan") for s in S]
             ax.plot(S, ys, marker="o", ms=3, color=color, label=lab)
