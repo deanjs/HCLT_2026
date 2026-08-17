@@ -95,9 +95,9 @@ ROLE_SPANS = (
 )
 # 초판 vs 분리 — 왜 나눴는지
 COMPARE_SPANS = (
-    ("instr_target_word", "0.45",      "--", "initial: required word (2 occ.)"),
-    ("instr_viol_word",   "0.65",      ":",  "initial: opposite word (1 occ.)"),
-    ("instr_rule_word",   "tab:green", "-",  "split: rule word (1 occ.)"),
+    ("instr_target_word", "0.45",      "--", "initial (rule + candidates): required word, appears twice"),
+    ("instr_viol_word",   "0.65",      ":",  "initial: opposite word, appears once"),
+    ("instr_rule_word",   "tab:green", "-",  "split out: rule-sentence word only, appears once"),
 )
 
 
