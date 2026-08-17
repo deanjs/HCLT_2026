@@ -132,12 +132,14 @@ x, y, w, h = D.panel(s, x1, BODY_TOP, w1, body_h(), "우리가 의심한 곳",
 D._tb(s, x, y + 10, w, 120,
       ["보는 양(어텐션)과", "실려 오는 내용(Value)은 다르다."],
       21, WHITE, spacing=-0.8, line=1.32)
-D.equation(s, eq("output"), x, y + 140, h=54)
-D.body(s, x, y + 212, w,
+D.equation(s, eq("output2"), x, y + 140, h=50)
+D.symbols(s, x, y + 196, w,
+          [("o", "다음 층으로 나가는 것"), ("a", "얼마나 보나"), ("v", "무엇이 실려 오나")])
+D.body(s, x, y + 228, w,
        "한 구간이 다음 층에 미치는 것은 「얼마나 보나(a)」와 「무엇을 실어 오나(v)」 두 요소로 정해진다. "
        "통념과 기존 처방은 **a만** 건드린다. 문제가 v에 있다면 a를 아무리 키워도 소용이 없다.",
        size=11)
-D.body(s, x, y + 296, w,
+D.body(s, x, y + 312, w,
        "가정으로 두지 않는다. 캐시의 Key만 덮으면 a가, Value만 덮으면 v가 바뀐다 — "
        "두 축을 따로 끊어 어느 쪽이 행동을 움직이는지 직접 잰다(step3·5). "
        "그리고 어텐션을 키우는 처방(Spotlight)은 재구현해 같은 자로 견준다(step6).",
@@ -199,7 +201,10 @@ D.deflist(s, x, y, w, [
     ("짝짓기", "처치와 통제를 같은 묶음끼리 뺀 다음 평균한다"),
     ("왜 중요한가", "평균끼리 빼면 차이의 신뢰구간을 얻을 수 없다"),
 ], fit_h=h - 80, tag="묶음")
-D.equation(s, eq("net2"), x, y + h - 70, h=56)
+D.equation(s, eq("net2"), x, y + h - 96, h=54)
+D.symbols(s, x, y + h - 34, w,
+          [("R", "처치 — 표기를 바꿔 넣은 것"), ("R′", "통제 — 표기 정보 없이 덮기만 한 것"),
+           ("b", "묶음 번호")])
 
 # ─────────────────────────────────────────────────────────────────────────
 s = D.slide(C3, "프롬프트 — 실제로 모델에 들어가는 것", "지침 문장은 고정이다 — 긍정형 · 약한 어조")
@@ -257,7 +262,8 @@ x, y, w, h = D.panel(s, ML, BODY_TOP, w1, body_h(), "정의",
                      caption="단위는 nat. S=1이면 준수 후보를 약 2.7배 선호한다.")
 D.equation(s, eq("logp2"), x, y + 6, h=62)
 D.equation(s, eq("score2"), x, y + 88, h=62)
-D.symbols(s, x, y + 168, w, [("x", "프롬프트"), ("y", "후보 이름"), ("y_k", "그 이름의 k번째 토큰")])
+D.symbols(s, x, y + 168, w,
+          [("x", "프롬프트"), ("y⁺", "준수 후보"), ("y⁻", "위반 후보"), ("y_k", "k번째 토큰")])
 D.deflist(s, x, y + 205, w, [
     ("후보 두 개 고정", "removeDuplicates / remove_duplicates — 같은 뜻, 표기만 다르다"),
     ("부호가 곧 답", "양수면 준수 표기를 선호. 크기는 선호의 세기다"),
@@ -282,25 +288,26 @@ D.body(s, x, y + 380, w,
 s = D.slide(C3, "측정 ② 되돌림률 R과 판정 불가", "개입이 얼마나 되돌렸나 — 그리고 물을 수 없는 조건을 미리 뺀다")
 w1, x1 = half()
 x, y, w, h = D.panel(s, ML, BODY_TOP, w1, body_h(), "세 상태와 비율")
-D.equation(s, eq("recov2"), x, y + 6, h=76)
-table(D, s, x, y + 100, w, ["기호", "프롬프트", "뜻"],
-      [["S(x^viol)", "문맥에 위반 6개", "기준 — 개입 없음"],
-       ["S(x^clean)", "문맥이 전부 준수", "천장 — 오염이 없을 때"],
-       ["S(x^int)", "위반 문맥의 KV를 덮은 것", "개입 후"]],
-      [24, 36, 40], fit_h=200, tag="R상태")
+D.equation(s, eq("recov2"), x, y + 6, h=72)
+table(D, s, x, y + 96, w, ["기호", "어떤 프롬프트인가", "부르는 이름"],
+      [["S₀", "문맥에 위반 6개 — 아무것도 안 건드린 상태", "기준"],
+       ["S₁", "문맥이 전부 준수 — 오염이 없을 때", "천장"],
+       ["S₂", "위반 문맥의 내부 값(KV)을 덮은 뒤", "개입 후"]],
+      [12, 62, 26], fit_h=200, tag="R상태")
 D.body(s, x, y + 320, w,
        "R = 1이면 천장까지 완전 회복, R = 0이면 변화 없음. ⚠️ 위가 막혀 있지 않다 — "
        "1을 넘는 구간은 되살아난 것이 아니라 지나친 것이다. 이 사실이 뒤에서 큰 문제가 된다.",
        size=11)
 x, y, w, h = D.panel(s, x1, BODY_TOP, w1, body_h(), "판정 불가 — 왜 필요한가",
                      caption="임계는 intervention.UNDECIDABLE_GAP = 1.0. 결과 JSON에 gap·undecidable이 저장된다.")
-D.equation(s, eq("undec"), x, y + 6, h=58)
-D.deflist(s, x, y + 90, w, [
+D.equation(s, eq("undec2"), x, y + 6, h=52)
+D.symbols(s, x, y + 62, w, [("S₀", "기준(개입 없음)"), ("S₁", "천장(오염 없음)")])
+D.deflist(s, x, y + 96, w, [
     ("무슨 상황인가", "문맥이 애초에 행동을 흔들지 못한 조건이다 — 천장과 바닥이 거의 같다"),
     ("왜 빼는가", "분모가 잡음이면 비율이 의미를 잃는다. 0.1을 0.05로 나누면 2가 나오지만 뜻이 없다"),
     ("논문에 할 일", "임계 민감도(0.5 / 1.0 / 2.0)를 각주로 함께 싣는다"),
     ("실제 영향", "Llama 지침 인과에서 특히 많이 빠진다 — 84조건 중 29개만 남는다"),
-], fit_h=h - 90, tag="판정불가")
+], fit_h=h - 96, tag="판정불가")
 
 # ─────────────────────────────────────────────────────────────────────────
 s = D.slide(C3, "측정 ③ 관측 3지표와 정규화", "무엇을 얼마나 보나 — 그리고 왜 토큰 수로 나눠야 하나")
@@ -325,12 +332,14 @@ table(D, s, x, y, w, ["모델", "camel 토큰", "snake 토큰", "비율"],
       [34, 22, 22, 22], fit_h=h, tag="토큰수")
 x, y, w, h = D.panel(s, x1, yy, w1, BODY_BOT - yy, "‖a·v‖는 왜 보조로 내렸나",
                      caption="살아 있는 주장은 전부 되돌림률(인과)과 생성 준수율(행동) 위에 서 있다.")
-D.equation(s, eq("avnorm"), x, y + 6, h=54)
-D.body(s, x, y + 78, w,
+D.equation(s, eq("avnorm"), x, y + 6, h=50)
+D.symbols(s, x, y + 60, w,
+          [("왼쪽", "우리가 재는 값"), ("오른쪽", "실제로 잔차에 더해지는 크기")])
+D.body(s, x, y + 92, w,
        "어텐션 가중치와 값 노름의 곱으로 구간 기여를 근사하는 방식은 Kobayashi et al.(2020)이 제안했다. "
        "다만 그쪽은 출력 사영 W_O를 노름 안에 넣는다. 우리 값은 W_O 이전이라 같은 지표가 아니라 "
        "**상한 대리치**다.", size=10.5)
-D.body(s, x, y + 190, w,
+D.body(s, x, y + 204, w,
        "그리고 이 지표는 어텐션을 곱하므로 자리 교란을 그대로 받는다 — 자리 통제 후 "
        "Qwen 11%·Llama 3%만 남고 DeepSeek은 음수로 뒤집혔다. 그래서 이 지표에 근거한 관측은 "
        "철회했고, 논문에서는 보조 서술로만 쓴다.", size=10.5, color=MUTE)
@@ -340,13 +349,15 @@ s = D.slide(C3, "개입 ― KV 캐시 평균 덮어쓰기", "가중치를 건드
 w1, x1 = half()
 x, y, w, h = D.panel(s, ML, BODY_TOP, w1, body_h(), "무엇을 덮나",
                      caption="가중치·FFN·임베딩은 건드리지 않는다. 캐시에 저장된 KV만 바꾼다.")
-D.equation(s, eq("meanpool2"), x, y + 6, h=58)
-bh = D.body(s, x, y + 84, w,
+D.equation(s, eq("meanpool2"), x, y + 6, h=54)
+D.symbols(s, x, y + 64, w,
+          [("D", "공여 쪽 조각 자리"), ("P", "덮을 자리"), ("k", "Key — Value도 같다")])
+bh = D.body(s, x, y + 96, w,
             "왜 평균인가 — 같은 이름의 두 표기가 모델마다 다른 개수로 쪼개진다"
             "(formatMatrix 2조각 / format_matrix 3조각). 조각 수가 안 맞으면 자리마다 "
             "무엇을 넣을지 정할 수 없다. 공여 조각들을 평균 내 대상 자리 전부에 넣으면 "
             "토크나이저와 무관하고 건너뛰는 이름이 없다.", size=10.5)
-ty = y + 84 + bh + 20
+ty = y + 96 + bh + 20
 table(D, s, x, ty, w, ["덮는 것", "검증하는 가설"],
       [["Key만", "문제가 어디를 보는가(어텐션)에 있다"],
        ["Value만", "문제가 무엇이 실려 오는가(내용)에 있다"],
@@ -357,27 +368,32 @@ x, y, w, h = D.panel(s, x1, BODY_TOP, w1, body_h(), "⚠️ 결론의 유효 범
 D._tb(s, x, y + 6, w, 110,
       ["모든 인과 결론은 “post-RoPE KV 캐시를", "평균 덮어쓰기로 바꾸는 규격” 안의 결과다."],
       16, WHITE, spacing=-0.4, line=1.35)
-D.equation(s, eq("rope"), x, y + 130, h=54)
-D.body(s, x, y + 200, w,
+D.equation(s, eq("rope"), x, y + 128, h=48)
+D.symbols(s, x, y + 182, w,
+          [("R", "위치에 따른 회전 — Key에만 붙는다"), ("k·v", "캐시에 저장되는 값")])
+D.body(s, x, y + 214, w,
        "캐시의 Key에는 그 토큰이 있던 위치의 회전 위상이 박혀 있다(RoPE). 위상이 다른 회전 벡터를 "
        "평균하면 상쇄 간섭이 일어나 크기가 줄어든다. Value는 RoPE가 없어 이 문제가 없다. "
        "즉 Key와 Value가 대칭적으로 다뤄지지 않는다.", size=10.5)
-D.body(s, x, y + 310, w,
+D.body(s, x, y + 324, w,
        "우리 주장이 정확히 “Key는 안 되고 Value는 된다”이므로, 결론이 방법의 산물일 위험이 직결된다. "
        "native Key 경로 자체에 대한 주장이 아니라고 본문에 반드시 적는다.", size=10.5, color=MUTE)
 
 # ─────────────────────────────────────────────────────────────────────────
 s = D.slide(C3, "통제 ― 이 연구의 방법론적 무기", "덮어쓰기는 정보를 넣는 동시에 원래 표현을 지운다")
-x, y, w, h = D.panel(s, ML, BODY_TOP, CW, 250, "왜 통제 없이 잰 값은 상한인가")
+x, y, w, h = D.panel(s, ML, BODY_TOP, CW, 330, "왜 통제 없이 잰 값은 상한인가")
 D.body(s, x, y, w,
        "위반 이름 자리에 준수판을 덮으면 준수 신호가 들어간다. 그런데 동시에 원래 있던 것이 지워지고, "
        "평균 풀링으로 단어 내부 구조도 뭉개진다. 그래서 되돌림률이 올라가도 그것이 “준수 정보가 들어가서”인지 "
        "“원래 것이 지워져서”인지 가릴 수 없다. 통제는 두 번째 몫을 재기 위한 것이다.", size=11.5)
-D.equation(s, eq("net2"), x, y + 110, h=58)
-D.body(s, x, y + 185, w,
+D.equation(s, eq("net2"), x, y + 108, h=54)
+D.symbols(s, x, y + 170, w,
+          [("R", "처치 — 표기를 바꿔 넣은 것"), ("R′", "통제 — 표기 정보 없이 덮기만 한 것"),
+           ("b", "묶음 번호 1~42")])
+D.body(s, x, y + 196, w,
        "반드시 같은 묶음끼리 먼저 빼고 42묶음에 대해 평균·신뢰구간을 낸다. 평균끼리 빼면 차이의 "
        "신뢰구간을 얻을 수 없다.", size=10.5, color=MUTE)
-yy = BODY_TOP + 250 + GAP
+yy = BODY_TOP + 330 + GAP
 x, y, w, h = D.panel(s, ML, yy, CW, BODY_BOT - yy, "스텝별 처치와 통제")
 table(D, s, x, y, w, ["스텝", "처치", "통제", "통제가 잡는 것"],
       [["step3 (코드)", "다른 camel 이름을 덮는다", "다른 snake 이름을 덮는다", "표기 정보 없이 덮기만 했을 때의 교란"],
@@ -517,9 +533,11 @@ code(D, s, x, y, w, 150, [
     "시드 67 :  C S S C C C C S S S S C",
     "           ↑ 12자리 중 같은 자리 0개",
 ])
-D.equation(s, eq("poscore"), x, y + 170, h=52)
-D.equation(s, eq("poscancel"), x, y + 240, h=58)
-D.body(s, x, y + 320, w,
+D.equation(s, eq("poscore"), x, y + 168, h=46)
+D.symbols(s, x, y + 218, w,
+          [("a", "그 구간이 받은 어텐션"), ("f(p)", "자리가 만드는 몫"), ("g(n)", "표기가 만드는 몫")])
+D.equation(s, eq("poscancel"), x, y + 248, h=52)
+D.body(s, x, y + 312, w,
        "여집합이므로 자리 항이 식에서 빠진다. 표본을 늘려 노이즈를 줄인 것이 아니라 교란항 자체가 "
        "사라지는 것이다 — 통계적 상쇄가 아니라 대수적 상쇄다. 그래서 42묶음만으로도 신뢰구간이 좁다.",
        size=10.5)
@@ -767,15 +785,17 @@ D.deflist(s, x, y, w, [
 ], fit_h=h, tag="diag의심")
 x, y, w, h = D.panel(s, x1, BODY_TOP, w1, body_h(), "무엇을 쟀나",
                      caption="점수를 매기지 않는 가벼운 진단이다. 조건 72개.")
-D.equation(s, eq("shrink"), x, y + 6, h=58)
-D.body(s, x, y + 82, w,
+D.equation(s, eq("shrink"), x, y + 6, h=54)
+D.symbols(s, x, y + 66, w,
+          [("ρ", "보존율 — 1이면 안 깎임"), ("k̃·ṽ", "덮어넣은 값"), ("k·v", "원래 값")])
+D.body(s, x, y + 98, w,
        "덮어넣은 값의 크기를 원래 값의 크기로 나눈다. 1에 가까우면 안 망가진 것이고, "
        "뚜렷이 작으면 그만큼 깎인 것이다. Key와 Value 각각에 대해 재서 견준다.", size=10.5)
 Dg = S["diag"]
-table(D, s, x, y + 180, w, ["모델", "Key 보존율", "Value 보존율", "Key − Value"],
+table(D, s, x, y + 196, w, ["모델", "Key 보존율", "Value 보존율", "Key − Value"],
       [[MS[m], f"{Dg[m]['key_shrink']:.3f}", f"{Dg[m]['value_shrink']:.3f}",
         f"{Dg[m]['key_minus_value']:+.3f}"] for m in MODELS],
-      [28, 24, 24, 24], fit_h=h - 180, tag="diag결과")
+      [28, 24, 24, 24], fit_h=h - 196, tag="diag결과")
 
 # ─────────────────────────────────────────────────────────────────────────
 s = D.slide(C8, "장치 검사 결과 — 걱정한 방향과 반대다", "Key가 Value보다 오히려 덜 깎인다")
@@ -803,15 +823,19 @@ D.deflist(s, x, y, w, [
 ], fit_h=h, tag="step6예측")
 x, y, w, h = D.panel(s, x1, BODY_TOP, w1, body_h(), "두 처방의 수식")
 D.eyebrow(s, x, y, "우리 — 잔차 스트림 조향")
-D.equation(s, eq("steer2"), x, y + 26, h=56)
-b1 = D.body(s, x, y + 96, w,
+D.equation(s, eq("steer2"), x, y + 26, h=50)
+D.symbols(s, x, y + 82, w,
+          [("h⁺", "camel 이름 토큰"), ("h⁻", "snake 이름 토큰"), ("α", "조향 세기")])
+b1 = D.body(s, x, y + 112, w,
             "camel 이름 토큰과 snake 이름 토큰의 hidden state 평균을 빼서 방향을 만들고, "
             "그 층 출력에 세기 α배로 더한다. 세기는 1 · 2 · 4 · 8을 돌렸다. "
             "어텐션은 건드리지 않는다.", size=10.5)
-y2 = y + 96 + b1 + 34
+y2 = y + 112 + b1 + 30
 D.eyebrow(s, x, y2, "기존 — Spotlight 재구현")
-D.equation(s, eq("spot2"), x, y2 + 26, h=74)
-D.body(s, x, y2 + 118, w,
+D.equation(s, eq("spot2"), x, y2 + 26, h=64)
+D.symbols(s, x, y2 + 96, w,
+          [("ψ", "개입 전 비중"), ("ψ*", "목표 비중"), ("S", "지침 스팬"), ("p", "어텐션 한 행")])
+D.body(s, x, y2 + 128, w,
        "지침 스팬의 어텐션 비중이 목표치 ψ에 못 미치면, 스팬에 배율을 곱하고 다시 정규화한다. "
        "재정규화 때문에 목표에 정확히 도달하지 않는 것이 정상이다(원문 식 5). ψ는 0.1 · 0.3.",
        size=10.5)
@@ -850,15 +874,17 @@ D.deflist(s, x, y, w, [
 ], fit_h=h, tag="step6시행착오")
 x, y, w, h = D.panel(s, x1, BODY_TOP, w1, body_h(), "고친 것 — 과제도 맞아야 준수다",
                      caption="이 판정 없이는 Spotlight의 “성공”이 전부 베끼기다.")
-D.equation(s, eq("realcompl"), x, y + 6, h=42)
-code(D, s, x, y + 66, w, 130, [
+D.equation(s, eq("compl2"), x, y + 6, h=44)
+D.symbols(s, x, y + 56, w,
+          [("c", "진짜 준수"), ("n", "표기가 맞으면 1"), ("t", "과제가 맞으면 1")])
+code(D, s, x, y + 92, w, 130, [
     "TASK_WORDS = ('remove', 'duplicat',",
     "              'dedup', 'uniq', 'distinct')",
     "def on_task(name):",
     "    return any(w in name.lower()",
     "               for w in TASK_WORDS)",
 ])
-D.body(s, x, y + 216, w,
+D.body(s, x, y + 242, w,
        "요청은 “중복을 제거하는 함수를 추가하라”였다. 그러니 이름에 과제를 가리키는 말이 들어 있어야 한다. "
        "표기 판정과 과제 판정을 곱해야 진짜 준수다. 이 판정을 넣자 값 조향의 수치도 함께 깎였다 — "
        "DeepSeek 세기2가 0.952에서 0.524로 내려가면서 최적 세기가 2가 아니라 1로 바뀌었다.",
